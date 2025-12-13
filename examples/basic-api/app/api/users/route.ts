@@ -11,9 +11,9 @@ import {
   createHandler,
   createAuthenticatedHandler,
   createAdminHandler
-} from '../../../../src';
+} from '../../../../../src/core/handler';
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const CreateUserSchema = z.object({
@@ -82,7 +82,7 @@ router.get('/', createHandler({
         limit,
         offset,
         total,
-        hasMore: offset + limit < total,
+        hasMore: ((offset ?? 0) + (limit ?? 0)) < total,
       },
     };
   },
