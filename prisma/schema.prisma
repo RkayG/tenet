@@ -30,6 +30,7 @@ model User {
   tenant     Tenant?      @relation(fields: [tenantId], references: [id])
   projects   Project[]    @relation("ProjectMembers")
   ownedProjects Project[] @relation("ProjectOwner")
+  assignedTasks Task[]
 
   @@map("users")
 }
