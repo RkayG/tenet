@@ -34,6 +34,14 @@ A comprehensive, enterprise-grade API handler framework for **Node.js + Express 
 - **Configuration Management** - Environment-based config
 - **Comprehensive Documentation** - API reference and guides
 
+### Audit Trail & Compliance
+- **Automatic Audit Logging** - Track all API operations automatically
+- **Data Change Tracking** - Before/after snapshots for compliance
+- **Flexible Querying** - Filter and search audit logs
+- **Compliance Reports** - GDPR, SOC2, HIPAA-ready reports
+- **Retention Policies** - Automatic cleanup based on data category
+- **Export Capabilities** - CSV, JSON export for analysis
+
 ## 📦 Installation
 
 ```bash
@@ -581,6 +589,163 @@ const isCompatible = versionManager.isVersionSupported('v1', 'v1');
 
 // Deprecate a version
 versionManager.deprecateVersion('v1', new Date('2024-12-31'));
+```
+
+## 📋 Audit Trail & Compliance
+
+The framework includes a comprehensive audit trail system for tracking all API operations, user actions, and data changes with full compliance support.
+
+### Features
+
+- **Automatic Logging** - All handler operations logged automatically
+- **Data Change Tracking** - Before/after snapshots for compliance
+- **Flexible Querying** - Filter by user, tenant, event type, date range
+- **Compliance Reports** - GDPR, SOC2, HIPAA-ready reports
+- **Retention Policies** - Automatic cleanup based on data category
+- **Export Capabilities** - CSV and JSON export for analysis
+
+### Basic Usage
+
+```typescript
+import { createAuthenticatedHandler } from 'secure-api-handler';
+
+// Enable audit logging in handler
+app.put('/api/projects/:id', createAuthenticatedHandler({
+  schema: z.object({
+    name: z.string(),
+    description: z.string().optional(),
+  }),
+  requireOwnership: {
+    model: 'Project',
+    resourceIdParam: 'id',
+  },
+  // Audit configuration
+  auditConfig: {
+    enabled: true,
+    resourceType: 'Project',
+    trackDataChanges: true, // Capture before/after state
+    captureResponseBody: true,
+    tags: ['project', 'update'],
+    retentionCategory: 'general', // 90 days retention
+  },
+  handler: async ({ input, params, prisma }) => {
+    return await prisma.project.update({
+      where: { id: params.id },
+      data: input,
+    });
+  },
+}));
+```
+
+### Query Audit Logs
+
+```typescript
+import { AuditService } from 'secure-api-handler';
+
+const auditService = AuditService.getInstance();
+
+// Query logs with filters
+const result = await auditService.queryLogs(
+  {
+    userId: 'user-123',
+    eventTypes: ['CREATE', 'UPDATE', 'DELETE'],
+    startDate: new Date('2024-01-01'),
+    endDate: new Date(),
+  },
+  {
+    page: 1,
+    pageSize: 20,
+    sortOrder: 'desc',
+  }
+);
+
+// Get resource history
+const history = await auditService.getResourceHistory('Project', 'project-123');
+
+// Get user activity
+const activity = await auditService.getUserActivity('user-123');
+```
+
+### Generate Compliance Reports
+
+```typescript
+import { AuditReporter } from 'secure-api-handler';
+
+const reporter = AuditReporter.getInstance();
+
+// User activity report
+const userReport = await reporter.generateUserActivityReport(
+  'user-123',
+  startDate,
+  endDate
+);
+
+// Security report
+const securityReport = await reporter.generateSecurityReport(startDate, endDate);
+
+// Compliance report
+const complianceReport = await reporter.generateComplianceReport(
+  startDate,
+  endDate,
+  'tenant-123'
+);
+
+// Export to CSV
+const csv = await reporter.exportToCSV({ startDate, endDate });
+
+// Export to JSON
+const json = await reporter.exportToJSON({ startDate, endDate });
+```
+
+### Retention Management
+
+```typescript
+import { AuditRetentionManager } from 'secure-api-handler';
+
+const retentionManager = AuditRetentionManager.getInstance();
+
+// Start automatic cleanup (runs every 24 hours)
+retentionManager.startAutomaticCleanup(24);
+
+// Manual cleanup
+const result = await retentionManager.runCleanup();
+console.log(`Deleted ${result.deletedCount} expired logs`);
+```
+
+### Configuration
+
+```typescript
+import { AuditService } from 'secure-api-handler';
+
+const auditService = AuditService.getInstance({
+  enabled: true,
+  autoLogAuth: true,
+  autoLogCRUD: true,
+  maskSensitiveData: true,
+  sensitiveFields: ['password', 'token', 'secret', 'apiKey'],
+  asyncLogging: true,
+  batchSize: 100,
+  retentionPolicies: {
+    general: 90,        // 90 days
+    auth: 365,          // 1 year
+    security: 2555,     // 7 years (compliance)
+    compliance: 2555,   // 7 years
+    admin: 730,         // 2 years
+  },
+});
+```
+
+### Global Middleware
+
+```typescript
+import { createAuditMiddleware, skipHealthChecks } from 'secure-api-handler';
+
+// Apply to all routes
+app.use(createAuditMiddleware({
+  enabled: true,
+  skipPathPatterns: skipHealthChecks,
+  captureQueryParams: true,
+}));
 ```
 
 ## 🐳 Docker & Deployment
