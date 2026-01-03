@@ -130,3 +130,121 @@ enum Priority {
   HIGH
   URGENT
 }
+
+// ============================================
+// Audit Trail System
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  
+  // Event Information
+  eventType   AuditEventType
+  category    AuditCategory
+  action      String              // e.g., "user.login", "project.update", "data.delete"
+  description String?
+  
+  // Context Information
+  userId      String?
+  userName    String?             // Denormalized for historical accuracy
+  userEmail   String?             // Denormalized for historical accuracy
+  tenantId    String?
+  tenantName  String?             // Denormalized for historical accuracy
+  
+  // Request Context
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+  method      String?             // HTTP method: GET, POST, PUT, DELETE
+  endpoint    String?             // API endpoint path
+  
+  // Resource Information
+  resourceType String?            // e.g., "Project", "User", "Task"
+  resourceId   String?
+  
+  // Data Change Tracking
+  oldData     Json?               // Before state (for UPDATE/DELETE)
+  newData     Json?               // After state (for CREATE/UPDATE)
+  changes     Json?               // Computed diff of changes
+  
+  // Status and Result
+  status      AuditStatus @default(SUCCESS)
+  statusCode  Int?                // HTTP status code
+  errorMessage String?
+  
+  // Metadata
+  metadata    Json?               // Additional custom metadata
+  tags        String[] @default([])
+  
+  // Compliance and Retention
+  severity    AuditSeverity @default(INFO)
+  retentionCategory String @default("general") // For retention policy management
+  expiresAt   DateTime?           // When this log should be deleted
+  
+  // Performance Tracking
+  executionTimeMs Int?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  
+  // Indexes for efficient querying
+  @@index([userId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([category, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([action, createdAt])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@index([requestId])
+  @@index([createdAt])
+  
+  @@map("audit_logs")
+}
+
+// ============================================
+// Audit Enums
+// ============================================
+
+enum AuditEventType {
+  CREATE      // Resource creation
+  READ        // Resource read/view
+  UPDATE      // Resource modification
+  DELETE      // Resource deletion
+  AUTH        // Authentication events
+  AUTHZ       // Authorization events
+  SECURITY    // Security-related events
+  SYSTEM      // System events
+  EXPORT      // Data export
+  IMPORT      // Data import
+  CONFIG      // Configuration changes
+  CUSTOM      // Custom events
+}
+
+enum AuditCategory {
+  DATA        // Data operations (CRUD)
+  AUTH        // Authentication
+  SECURITY    // Security events
+  SYSTEM      // System operations
+  COMPLIANCE  // Compliance-related
+  ADMIN       // Administrative actions
+  USER        // User actions
+}
+
+enum AuditStatus {
+  SUCCESS     // Operation succeeded
+  FAILURE     // Operation failed
+  PARTIAL     // Partial success
+  PENDING     // Operation pending
+}
+
+enum AuditSeverity {
+  DEBUG       // Debug information
+  INFO        // Informational
+  NOTICE      // Normal but significant
+  WARNING     // Warning conditions
+  ERROR       // Error conditions
+  CRITICAL    // Critical conditions
+  ALERT       // Action must be taken immediately
+  EMERGENCY   // System is unusable
+}
