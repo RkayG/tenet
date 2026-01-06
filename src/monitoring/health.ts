@@ -19,7 +19,7 @@ export class HealthChecker {
   private checks: Map<string, HealthCheckConfig> = new Map();
   private checkFunctions: Map<string, () => Promise<HealthCheck>> = new Map();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): HealthChecker {
     if (!HealthChecker.instance) {
@@ -34,7 +34,7 @@ export class HealthChecker {
   public registerCheck(
     name: string,
     checkFn: () => Promise<HealthCheck>,
-    config: HealthCheckConfig = {}
+    config: Partial<HealthCheckConfig> = {}
   ): void {
     this.checks.set(name, {
       name,
@@ -64,7 +64,7 @@ export class HealthChecker {
         ]);
 
         results.push(result);
-      } catch (error) {
+      } catch (error: any) {
         results.push({
           name: config.name,
           status: 'unhealthy',
@@ -93,7 +93,7 @@ export class HealthChecker {
         checkFn(),
         this.createTimeoutCheck(config),
       ]);
-    } catch (error) {
+    } catch (error: any) {
       return {
         name: config.name,
         status: 'unhealthy',
@@ -170,7 +170,7 @@ export class HealthChecker {
           timestamp: new Date(),
           details: { connected: isHealthy },
         };
-      } catch (error) {
+      } catch (error: any) {
         return {
           name,
           status: 'unhealthy',
@@ -199,7 +199,7 @@ export class HealthChecker {
           timestamp: new Date(),
           details: { connected: true },
         };
-      } catch (error) {
+      } catch (error: any) {
         return {
           name,
           status: 'unhealthy',
@@ -256,7 +256,7 @@ export class HealthChecker {
             expectedStatus,
           },
         };
-      } catch (error) {
+      } catch (error: any) {
         const responseTime = Date.now() - startTime;
         return {
           name,
@@ -356,7 +356,7 @@ export class HealthChecker {
           timestamp: new Date(),
           details: usage,
         };
-      } catch (error) {
+      } catch (error: any) {
         return {
           name,
           status: 'unhealthy',
@@ -371,7 +371,7 @@ export class HealthChecker {
   /**
    * Get disk usage (simplified implementation)
    */
-  private static async getDiskUsage(path: string): Promise<{
+  private static async getDiskUsage(_path: string): Promise<{
     used: number;
     available: number;
     total: number;
@@ -405,7 +405,7 @@ export class HealthChecker {
           timestamp: new Date(),
           details: result.details,
         };
-      } catch (error) {
+      } catch (error: any) {
         return {
           name,
           status: 'unhealthy',

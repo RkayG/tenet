@@ -402,8 +402,9 @@ export class AuditService {
 
     /**
      * Flush pending logs (for async logging)
+     * Public method to support graceful shutdown
      */
-    private async flushPendingLogs(): Promise<void> {
+    public async flushPendingLogs(): Promise<void> {
         if (this.pendingLogs.length === 0) {
             return;
         }

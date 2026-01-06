@@ -1,11 +1,11 @@
 /**
  * OAuth Authentication Strategy
- * 
+ *
  * Validates OAuth tokens (OAuth 2.0) and authenticates users
  * Supports multiple OAuth providers (Google, GitHub, etc.)
  */
 
-// ======= UNSUPPORTED YET =======
+// ======= UNSUPPORTED YET/IN DEVELOPMENT =======
 
 //import { Request } from 'express';
 //import { AuthStrategy, User } from '../../core/types';

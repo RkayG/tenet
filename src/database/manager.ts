@@ -68,7 +68,7 @@ export class DatabaseManager {
         this.pool = new ConnectionPool({
           size: this.config.poolSize,
           databaseUrl: this.config.url,
-          timeout: this.config.connectionTimeout,
+          ...(this.config.connectionTimeout && { timeout: this.config.connectionTimeout }),
         });
         await this.pool.initialize();
       }
@@ -179,7 +179,7 @@ export class DatabaseManager {
     }
 
     try {
-      return await this.client.$executeRawUnsafe(query, ...( params || []));
+      return await this.client.$executeRawUnsafe(query, ...(params || []));
     } catch (error) {
       console.error('Error executing raw query:', error);
       throw error;

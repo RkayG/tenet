@@ -109,7 +109,7 @@ export class ValidationUtils {
    */
   public static isValidCreditCard(cardNumber: string): boolean {
     const cleaned = cardNumber.replace(/\s/g, '');
-    
+
     if (!/^\d+$/.test(cleaned)) {
       return false;
     }
@@ -118,7 +118,7 @@ export class ValidationUtils {
     let isEven = false;
 
     for (let i = cleaned.length - 1; i >= 0; i--) {
-      let digit = parseInt(cleaned[i]);
+      let digit = parseInt(cleaned[i]!);
 
       if (isEven) {
         digit *= 2;

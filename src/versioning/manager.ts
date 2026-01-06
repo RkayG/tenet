@@ -4,7 +4,7 @@
  * Manages API versioning with support for URL-based and header-based versioning
  */
 
-import { NextRequest } from 'next/server';
+import { Request } from 'express';
 import { ApiVersion, VersionConfig } from '../core/types';
 
 export class VersionManager {
@@ -49,23 +49,23 @@ export class VersionManager {
   }
 
   /**
-   * Get client API version from request
+   * Get client API version from Express request
    */
-  public getClientVersion(request: NextRequest): string {
+  public getClientVersion(request: Request): string {
     // Try header-based versioning first
-    const headerVersion = request.headers.get(this.config.header);
+    const headerVersion = request.get(this.config.header);
     if (headerVersion && this.isValidVersion(headerVersion)) {
       return headerVersion;
     }
 
     // Try URL-based versioning
-    const urlVersion = this.extractVersionFromUrl(request.url);
+    const urlVersion = this.extractVersionFromUrl(request.originalUrl || request.url);
     if (urlVersion && this.isValidVersion(urlVersion)) {
       return urlVersion;
     }
 
     // Try query parameter versioning
-    const paramVersion = request.nextUrl.searchParams.get(this.config.parameter);
+    const paramVersion = request.query[this.config.parameter] as string;
     if (paramVersion && this.isValidVersion(paramVersion)) {
       return paramVersion;
     }
@@ -259,28 +259,28 @@ export class VersionManager {
   }
 
   /**
-   * Middleware for automatic version handling
+   * Middleware for automatic version handling (Express)
    */
   public createVersionMiddleware() {
-    return (request: NextRequest) => {
-      const clientVersion = this.getClientVersion(request);
+    return (req: Request, res: any, next: any) => {
+      const clientVersion = this.getClientVersion(req);
 
       // Add version to request headers for downstream use
-      request.headers.set('X-API-Version', clientVersion);
+      req.headers['x-api-version'] = clientVersion;
 
       // Check for deprecation
       if (this.isVersionDeprecated(clientVersion)) {
         const deprecation = this.getDeprecationInfo(clientVersion);
 
-        // Add deprecation warning header
-        request.headers.set('X-API-Deprecation', deprecation.message || 'This API version is deprecated');
+        // Add deprecation warning header to response
+        res.setHeader('X-API-Deprecation', deprecation.message || 'This API version is deprecated');
 
         if (deprecation.sunsetDate) {
-          request.headers.set('X-API-Sunset', deprecation.sunsetDate.toISOString());
+          res.setHeader('X-API-Sunset', deprecation.sunsetDate.toISOString());
         }
       }
 
-      return request;
+      next();
     };
   }
 

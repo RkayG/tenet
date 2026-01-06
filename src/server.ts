@@ -4,7 +4,7 @@
  * This file demonstrates how to set up an Express server with the secure API handler framework.
  */
 
-import express from 'express';
+import express, { Express, NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -20,7 +20,7 @@ import { TenantManager } from './multitenancy/manager';
 import { SharedSchemaStrategy } from './multitenancy/strategies/shared-schema';
 import testRoutes from './test-routes';
 
-const app = express();
+const app: Express = express();
 const prisma = new PrismaClient();
 
 // Set global Prisma instance for handlers
@@ -80,7 +80,7 @@ app.use((req, res, next) => {
   monitoring.recordMetric('http.request', 1, {
     method: req.method,
     path: req.path,
-    userAgent: req.get('User-Agent')?.substring(0, 100),
+    userAgent: req.get('User-Agent')?.substring(0, 100)!,
   });
 
   res.on('finish', () => {
@@ -88,8 +88,8 @@ app.use((req, res, next) => {
     monitoring.recordMetric('http.response', 1, {
       method: req.method,
       path: req.path,
-      status: res.statusCode,
-      duration,
+      status: res.statusCode.toString(),
+      duration: duration.toString(),
     });
   });
 
@@ -97,7 +97,7 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req: Request, res: Response) => {
   try {
     const health = await healthChecker.getOverallHealth();
     return healthCheckResponse(res, health.status, {
@@ -105,7 +105,7 @@ app.get('/health', async (req, res) => {
       timestamp: health.timestamp,
       version: process.env.npm_package_version || '1.0.0',
     });
-  } catch (error) {
+  } catch (error: any) {
     return healthCheckResponse(res, 'unhealthy', {
       error: error.message,
     });
@@ -122,7 +122,7 @@ app.get('/health', async (req, res) => {
 app.use(testRoutes);
 
 // Example route
-app.get('/api/test', (req, res) => {
+app.get('/api/test', (_req: Request, res: Response) => {
   res.json({
     message: 'Secure API Handler Framework is running!',
     timestamp: new Date().toISOString(),
@@ -131,7 +131,7 @@ app.get('/api/test', (req, res) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: {
@@ -142,7 +142,7 @@ app.use('*', (req, res) => {
 });
 
 // Global error handler
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((error: any, req: Request, res: Response, _next: NextFunction) => {
   monitoring.recordError(error, {
     method: req.method,
     path: req.path,

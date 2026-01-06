@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 
 import {
@@ -15,7 +15,6 @@ import {
   HandlerContext,
   User,
   TenantContext,
-  TraceContext,
 } from './types';
 import {
   successResponse,
@@ -27,25 +26,27 @@ import {
   internalErrorResponse,
 } from './response';
 
-// Import services (will be implemented)
+// Import services
 import { AuthManager } from '../auth/manager';
 import { SanitizationService } from '../security/sanitization';
 import { EncryptionService } from '../security/encryption';
 import { RedisRateLimiter } from '../security/rate-limiting';
 import { CacheManager } from '../caching/manager';
-import { MonitoringService } from '../monitoring/service';
-import { TenantManager } from '../multitenancy/manager';
-import { VersionManager } from '../versioning/manager';
-import { ConfigManager } from '../config/manager';
-import { AuditService } from '../audit/audit-service';
 import { AuditEventType, AuditCategory, AuditStatus, AuditSeverity } from '../audit/audit-types';
-
+import { ServiceInitializer } from './service-initializer';
 // ============================================
 // Main Handler Factory
 // ============================================
 
 /**
- * Create a standardized API handler
+ * Internal handler factory - DO NOT USE DIRECTLY
+ * 
+ * @internal
+ * This is the base handler implementation. Use the public API instead:
+ * - createPublicHandler() for public endpoints
+ * - createAuthenticatedHandler() for authenticated endpoints
+ * - createAdminHandler() for admin-only endpoints
+ * - createTenantHandler() for tenant-scoped endpoints
  *
  * Automatically handles:
  * - Authentication & Authorization
@@ -56,40 +57,26 @@ import { AuditEventType, AuditCategory, AuditStatus, AuditSeverity } from '../au
  * - Error handling & monitoring
  * - Multi-tenancy
  * - API versioning
- *
- * @example
- * ```typescript
- * export const POST = createHandler({
- *   schema: z.object({ name: z.string() }),
- *   requireAuth: true,
- *   requireOwnership: {
- *     table: 'experiences',
- *     resourceIdParam: 'id',
- *     selectColumns: 'id, name, brand_id'
- *   },
- *   handler: async ({ input, user, supabase, resource }) => {
- *     const experience = await updateExperience(input, user.brand_id);
- *     return experience;
- *   },
- * });
- * ```
  */
-export function createHandler<TInput = unknown, TOutput = unknown>(
+function _createHandler<TInput = unknown, TOutput = unknown>(
   config: HandlerConfig<TInput, TOutput>
 ) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (req: Request, res: Response): Promise<any> => {
     const traceId = generateTraceId();
     const startTime = Date.now();
 
-    // Initialize services
-    const monitoring = MonitoringService.getInstance();
-    const configManager = ConfigManager.getInstance();
-    const tenantManager = TenantManager.getInstance();
-    const versionManager = VersionManager.getInstance();
-    const auditService = AuditService.getInstance();
+    // Get initialized services from ServiceInitializer
+    const services = ServiceInitializer.getServices();
+    const monitoring = services.monitoring!;
+    const configManager = services.configManager!;
+    const tenantManager = services.tenantManager!;
+    const versionManager = services.versionManager!;
+    const auditService = services.auditService!;
 
-    let span: any = null;
+    let span: string | null = null;
     let auditEnabled = config.auditConfig?.enabled !== false;
+    let user: User | null = null;
+    let tenant: TenantContext | undefined;
 
     try {
       // Start monitoring span
@@ -107,7 +94,7 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
       if (config.featureFlags) {
         const featureFlags = configManager.getFeatureFlags();
         const disabledFeatures = config.featureFlags.filter(
-          flag => !featureFlags[flag]
+          (flag: string) => !featureFlags[flag]
         );
 
         if (disabledFeatures.length > 0) {
@@ -140,8 +127,6 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
       // 3. Multi-Tenant Context
       // ============================================
 
-      let tenant: TenantContext | undefined;
-
       if (tenantManager.isEnabled()) {
         const tenantId = await tenantManager.resolveTenantId(req);
         if (tenantId) {
@@ -157,8 +142,6 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
       // ============================================
       // 4. Authentication
       // ============================================
-
-      let user: User | null = null;
 
       if (config.requireAuth) {
         const authManager = AuthManager.getInstance();
@@ -184,7 +167,7 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
 
         monitoring.recordMetric('auth.success', 1, {
           method: req.method,
-          user_role: user.role,
+          user_role: user?.role || 'user',
         });
 
         // Audit: Log successful authentication
@@ -210,7 +193,7 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
         // Permission-based access control
         if (config.requiredPermissions && config.requiredPermissions.length > 0) {
           const hasPermissions = config.requiredPermissions.every(
-            permission => user?.permissions?.includes(permission)
+            (permission: string) => user?.permissions?.includes(permission)
           );
 
           if (!hasPermissions) {
@@ -271,7 +254,7 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
           if (!parseResult.success) {
             const details = parseResult.error.flatten().fieldErrors;
             monitoring.recordMetric('validation.error', 1, {
-              field_count: Object.keys(details).length,
+              field_count: Object.keys(details).length.toString(),
             });
             return validationErrorResponse(res, 'Invalid input data', details);
           }
@@ -350,9 +333,9 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
             [resourceIdField || 'id']: resourceId,
           };
 
-          // Add owner/brand filter
-          if (ownerIdField && user.brand_id) {
-            where[ownerIdField] = user.brand_id;
+          // Add owner/tenant filter
+          if (ownerIdField && user.tenant_id) {
+            where[ownerIdField] = user.tenant_id;
           }
 
           // Add tenant filter
@@ -403,8 +386,8 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
         params,
         query,
         request: req,
-        resource,
-        tenant,
+        ...(resource ? { resource } : {}),
+        ...(tenant ? { tenant } : {}),
         trace: {
           traceId,
           spanId: generateSpanId(),
@@ -412,8 +395,8 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
           tags: {
             method: req.method,
             path: req.path,
-            user_id: user?.id,
-            tenant_id: tenant?.id,
+            user_id: user?.id || '',
+            tenant_id: tenant?.id || '',
           },
         },
       };
@@ -473,8 +456,8 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
       const executionTime = Date.now() - startTime;
       monitoring.recordMetric('handler.success', 1, {
         method: req.method,
-        path: (req as any).nextUrl?.pathname || req.path,
-        execution_time: executionTime,
+        path: req.path,
+        execution_time: executionTime.toString(),
       });
 
       // Audit: Log successful operation
@@ -489,21 +472,21 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
             category: config.auditConfig?.category as any || AuditCategory.DATA,
             action: config.auditConfig?.action || `${req.method.toLowerCase()}.${req.path}`,
             description: `${req.method} ${req.path}`,
-            resourceType,
-            resourceId,
-            oldData: config.auditConfig?.trackDataChanges ? oldData : undefined,
-            newData: config.auditConfig?.captureResponseBody ? processedResult : undefined,
+            ...(resourceType ? { resourceType } : {}),
+            ...(resourceId ? { resourceId } : {}),
+            ...(config.auditConfig?.trackDataChanges ? { oldData } : {}),
+            ...(config.auditConfig?.captureResponseBody ? { newData: processedResult } : {}),
             status: AuditStatus.SUCCESS,
             statusCode: config.successStatus || 200,
             severity: AuditSeverity.INFO,
             executionTimeMs: executionTime,
-            metadata: config.auditConfig?.metadata,
-            tags: config.auditConfig?.tags,
-            retentionCategory: config.auditConfig?.retentionCategory,
+            ...(config.auditConfig?.metadata ? { metadata: config.auditConfig.metadata } : {}),
+            ...(config.auditConfig?.tags ? { tags: config.auditConfig.tags } : {}),
+            ...(config.auditConfig?.retentionCategory ? { retentionCategory: config.auditConfig.retentionCategory } : {}),
           },
           {
             user,
-            tenant,
+            ...(tenant ? { tenant } : {}),
             request: req,
             traceId,
           }
@@ -520,9 +503,9 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
       // Record error metrics
       monitoring.recordMetric('handler.error', 1, {
         method: req.method,
-        path: (req as any).nextUrl?.pathname || req.path,
+        path: req.path,
         error_type: error.constructor.name,
-        execution_time: executionTime,
+        execution_time: executionTime.toString(),
       });
 
       console.error('[API Handler Error]', {
@@ -599,8 +582,8 @@ export function createHandler<TInput = unknown, TOutput = unknown>(
  */
 export const createAuthenticatedHandler = <TInput, TOutput>(
   config: Omit<HandlerConfig<TInput, TOutput>, 'requireAuth'>
-): ReturnType<typeof createHandler<TInput, TOutput>> => {
-  return createHandler({ ...config, requireAuth: true });
+): ReturnType<typeof _createHandler<TInput, TOutput>> => {
+  return _createHandler({ ...config, requireAuth: true });
 };
 
 /**
@@ -608,8 +591,8 @@ export const createAuthenticatedHandler = <TInput, TOutput>(
  */
 export const createPublicHandler = <TInput, TOutput>(
   config: Omit<HandlerConfig<TInput, TOutput>, 'requireAuth'>
-): ReturnType<typeof createHandler<TInput, TOutput>> => {
-  return createHandler({ ...config, requireAuth: false });
+): ReturnType<typeof _createHandler<TInput, TOutput>> => {
+  return _createHandler({ ...config, requireAuth: false });
 };
 
 /**
@@ -617,8 +600,8 @@ export const createPublicHandler = <TInput, TOutput>(
  */
 export const createAdminHandler = <TInput, TOutput>(
   config: Omit<HandlerConfig<TInput, TOutput>, 'requireAuth' | 'allowedRoles'>
-): ReturnType<typeof createHandler<TInput, TOutput>> => {
-  return createHandler({
+): ReturnType<typeof _createHandler<TInput, TOutput>> => {
+  return _createHandler({
     ...config,
     requireAuth: true,
     allowedRoles: ['admin'],
@@ -630,8 +613,8 @@ export const createAdminHandler = <TInput, TOutput>(
  */
 export const createTenantHandler = <TInput, TOutput>(
   config: Omit<HandlerConfig<TInput, TOutput>, 'requireAuth'>
-): ReturnType<typeof createHandler<TInput, TOutput>> => {
-  return createHandler({
+): ReturnType<typeof _createHandler<TInput, TOutput>> => {
+  return _createHandler({
     ...config,
     requireAuth: true,
     featureFlags: ['multitenancy'],

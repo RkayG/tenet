@@ -4,7 +4,7 @@
  * Handles versioning through URL paths (e.g., /api/v1/users, /api/v2/users)
  */
 
-import { NextRequest } from 'next/server';
+import { Request } from 'express';
 
 export interface UrlVersioningConfig {
   prefix?: string;
@@ -26,8 +26,8 @@ export class UrlVersioningStrategy {
   /**
    * Extract version from URL
    */
-  public extractVersion(request: NextRequest): string | null {
-    const pathname = request.nextUrl.pathname;
+  public extractVersion(request: Request): string | null {
+    const pathname = request.path || request.url;
 
     // Check if path starts with API prefix
     if (!pathname.startsWith(this.config.prefix)) {
@@ -54,7 +54,7 @@ export class UrlVersioningStrategy {
   /**
    * Check if URL contains a version
    */
-  public hasVersion(request: NextRequest): boolean {
+  public hasVersion(request: Request): boolean {
     return this.extractVersion(request) !== null;
   }
 
@@ -66,7 +66,8 @@ export class UrlVersioningStrategy {
       const urlObj = new URL(url);
 
       // If already has version, replace it
-      if (this.hasVersion({ nextUrl: urlObj } as NextRequest)) {
+      const pathname = urlObj.pathname;
+      if (pathname.includes(`/${version}/`) || pathname.endsWith(`/${version}`)) {
         urlObj.pathname = this.replaceVersion(urlObj.pathname, version);
       } else {
         // Add version after prefix
@@ -102,10 +103,10 @@ export class UrlVersioningStrategy {
   /**
    * Get base URL without version
    */
-  public getBaseUrl(request: NextRequest): string {
-    const url = request.url;
+  public getBaseUrl(request: Request): string {
+    const url = request.originalUrl || request.url;
     try {
-      const urlObj = new URL(url);
+      const urlObj = new URL(url, `http://${request.get('host')}`);
       urlObj.pathname = this.removeVersionFromPath(urlObj.pathname);
       return urlObj.toString();
     } catch {

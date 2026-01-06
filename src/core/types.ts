@@ -12,10 +12,9 @@ import { z } from 'zod';
 export interface User {
   id: string;
   email: string;
-  brand_id: string;
+  tenant_id: string;
   role?: string;
   permissions?: string[];
-  tenant_id?: string;
   metadata?: Record<string, any>;
   last_login?: Date;
   is_active?: boolean;
@@ -225,6 +224,7 @@ export interface ApiMeta {
   version: string;
   requestId: string;
   executionTime?: number;
+  cached?: boolean;
 }
 
 export type ErrorCode =

@@ -95,7 +95,7 @@ router.post('/test/generate-token', createPublicHandler({
     const user: User = {
       id: input.userId,
       email: input.email,
-      brand_id: input.userId,
+      tenant_id: input.userId,
       role: input.role,
     };
 
@@ -183,7 +183,7 @@ router.get('/test/database', createPublicHandler({
     try {
       // Try a simple query
       await prisma.$queryRaw`SELECT 1 as result`;
-      
+
       return {
         database: 'connected',
         status: 'healthy',

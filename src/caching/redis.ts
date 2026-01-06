@@ -19,22 +19,22 @@ export interface RedisCacheConfig {
 export class RedisCache {
   private static instance: RedisCache;
   private redis: RedisClientType;
-  private config: Required<RedisCacheConfig>;
+  private config: RedisCacheConfig & { url: string; database: number; keyPrefix: string; defaultTtl: number; enableCompression: boolean };
   private isConnected: boolean = false;
 
   private constructor(config: RedisCacheConfig = {}) {
     this.config = {
       url: config.url || process.env.REDIS_URL || 'redis://localhost:6379',
-      password: config.password || process.env.REDIS_PASSWORD,
+      ...(config.password || process.env.REDIS_PASSWORD ? { password: config.password || process.env.REDIS_PASSWORD } : {}),
       database: config.database || 0,
       keyPrefix: config.keyPrefix || 'cache:',
       defaultTtl: config.defaultTtl || 300, // 5 minutes
       enableCompression: config.enableCompression || false,
-    };
+    } as Omit<Required<RedisCacheConfig>, 'password'> & { password?: string };
 
     this.redis = createClient({
       url: this.config.url,
-      password: this.config.password,
+      ...(this.config.password && { password: this.config.password }),
       database: this.config.database,
     });
 
@@ -113,12 +113,12 @@ export class RedisCache {
       const serialized = JSON.stringify(entry);
 
       // Set with TTL
-      await this.redis.setex(fullKey, entry.ttl, serialized);
+      await this.redis.setEx(fullKey, entry.ttl, serialized);
 
       // Add to tag sets for invalidation
       if (tags && tags.length > 0) {
         for (const tag of tags) {
-          await this.redis.sadd(this.getTagKey(tag), fullKey);
+          await this.redis.sAdd(this.getTagKey(tag), fullKey);
         }
       }
 
@@ -143,7 +143,7 @@ export class RedisCache {
       const entry = await this.getEntry(key);
       if (entry?.tags) {
         for (const tag of entry.tags) {
-          await this.redis.srem(this.getTagKey(tag), fullKey);
+          await this.redis.sRem(this.getTagKey(tag), fullKey);
         }
       }
 
@@ -199,7 +199,7 @@ export class RedisCache {
 
     try {
       const fullKey = this.getFullKey(key);
-      return await this.redis.expire(fullKey, ttl) === 1;
+      return await this.redis.expire(fullKey, ttl);
     } catch (error) {
       console.error('Cache expire error:', error);
       return false;
@@ -219,7 +219,7 @@ export class RedisCache {
 
       for (const tag of tags) {
         const tagKey = this.getTagKey(tag);
-        const keys = await this.redis.smembers(tagKey);
+        const keys = await this.redis.sMembers(tagKey);
 
         if (keys.length > 0) {
           // Delete all keys with this tag
@@ -310,9 +310,9 @@ export class RedisCache {
 
     try {
       const fullKeys = keys.map(key => this.getFullKey(key));
-      const values = await this.redis.mget(fullKeys);
+      const values = await this.redis.mGet(fullKeys);
 
-      return values.map((value, index) => {
+      return values.map((value, _index) => {
         if (!value) return null;
 
         try {
@@ -349,12 +349,12 @@ export class RedisCache {
           tags: entry.tags || [],
         };
 
-        pipeline.setex(fullKey, cacheEntry.ttl, JSON.stringify(cacheEntry));
+        pipeline.setEx(fullKey, cacheEntry.ttl, JSON.stringify(cacheEntry));
 
         // Add to tag sets
         if (entry.tags) {
           for (const tag of entry.tags) {
-            pipeline.sadd(this.getTagKey(tag), fullKey);
+            pipeline.sAdd(this.getTagKey(tag), fullKey);
           }
         }
       }
@@ -398,7 +398,7 @@ export class RedisCache {
     for (const line of lines) {
       if (line.includes(':')) {
         const [key, value] = line.split(':');
-        parsed[key] = value;
+        parsed[key as string] = value;
       }
     }
 

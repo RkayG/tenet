@@ -4,7 +4,7 @@
  * Handles versioning through request headers (e.g., Accept-Version: v1)
  */
 
-import { NextRequest } from 'next/server';
+import { Request } from 'express';
 
 export interface HeaderVersioningConfig {
   headerName?: string;
@@ -30,15 +30,15 @@ export class HeaderVersioningStrategy {
   /**
    * Extract version from request headers
    */
-  public extractVersion(request: NextRequest): string | null {
+  public extractVersion(request: Request): string | null {
     // Try the primary header
-    const version = request.headers.get(this.config.headerName);
+    const version = request.get(this.config.headerName);
     if (version && this.isValidVersion(version)) {
       return version;
     }
 
     // Try Accept header with vendor media type
-    const acceptHeader = request.headers.get('Accept');
+    const acceptHeader = request.get('Accept');
     if (acceptHeader) {
       const vendorVersion = this.extractFromAcceptHeader(acceptHeader);
       if (vendorVersion && this.isValidVersion(vendorVersion)) {
@@ -49,7 +49,7 @@ export class HeaderVersioningStrategy {
     // Try custom headers
     const customHeaders = ['X-API-Version', 'X-Version', 'API-Version'];
     for (const header of customHeaders) {
-      const version = request.headers.get(header);
+      const version = request.get(header);
       if (version && this.isValidVersion(version)) {
         return version;
       }
@@ -61,25 +61,15 @@ export class HeaderVersioningStrategy {
   /**
    * Check if request has version information
    */
-  public hasVersion(request: NextRequest): boolean {
+  public hasVersion(request: Request): boolean {
     return this.extractVersion(request) !== null;
   }
 
   /**
    * Add version header to request (for middleware)
    */
-  public addVersionToRequest(request: NextRequest, version: string): NextRequest {
-    // Clone the request to avoid modifying the original
-    const newHeaders = new Headers(request.headers);
-    newHeaders.set(this.config.headerName, version);
-
-    // Create a new request-like object
-    const newRequest = {
-      ...request,
-      headers: newHeaders,
-    };
-
-    return newRequest as NextRequest;
+  public addVersionToRequest(request: Request, version: string): void {
+    request.headers[this.config.headerName.toLowerCase()] = version;
   }
 
   /**
@@ -209,27 +199,28 @@ export class HeaderVersioningStrategy {
   }
 
   /**
-   * Create middleware for header-based versioning
+   * Create middleware for header-based versioning (Express)
    */
   public createMiddleware() {
-    return (request: NextRequest) => {
-      const version = this.extractVersion(request);
+    return (req: Request, res: any, next: any) => {
+      const version = this.extractVersion(req);
 
       if (version) {
         // Add version to request for downstream handlers
-        request.headers.set('X-API-Version', version);
-        return request;
+        req.headers['x-api-version'] = version;
+      } else {
+        // No version found, add default
+        this.addVersionToRequest(req, this.config.defaultVersion);
       }
 
-      // No version found, add default
-      return this.addVersionToRequest(request, this.config.defaultVersion);
+      next();
     };
   }
 
   /**
    * Negotiate version based on client preferences
    */
-  public negotiateVersion(request: NextRequest): string {
+  public negotiateVersion(request: Request): string {
     const clientVersion = this.extractVersion(request);
 
     if (clientVersion && this.isValidVersion(clientVersion)) {

@@ -102,7 +102,7 @@ export class APIKeyStrategy implements AuthStrategy {
     // Query database for API key
     // Note: This assumes you have an ApiKey model in your Prisma schema
     const keyRecord = await (this.prismaClient as any).apiKey.findUnique({
-      where: { 
+      where: {
         key: keyToLookup,
         isActive: true,
       },
@@ -145,14 +145,13 @@ export class APIKeyStrategy implements AuthStrategy {
    */
   private keyRecordToUser(keyRecord: any): User {
     const user = keyRecord.user;
-    
+
     return {
       id: user.id,
       email: user.email,
-      brand_id: user.brand_id || keyRecord.id,
+      tenant_id: user.tenant_id || keyRecord.tenantId,
       role: user.role,
       permissions: keyRecord.permissions || user.permissions,
-      tenant_id: user.tenant_id || keyRecord.tenantId,
       metadata: {
         ...user.metadata,
         apiKeyId: keyRecord.id,

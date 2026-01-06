@@ -12,10 +12,8 @@ import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 import {
   SanitizationConfig,
-  HtmlSanitizationConfig,
-  SqlSanitizationConfig,
   XssProtectionConfig,
-  SensitiveDataConfig,
+  SensitiveDataConfig
 } from '../core/types';
 
 // Initialize DOMPurify with JSDOM for server-side usage
@@ -83,13 +81,13 @@ export class SanitizationService {
         enabled: true,
         escapeHtml: true,
         ...config.xss,
-      },
+      } as XssProtectionConfig,
       sensitive: {
         fields: ['password', 'token', 'api_key', 'secret', 'private_key'],
         maskCharacter: '*',
         maskLength: 8,
         ...config.sensitive,
-      },
+      } as SensitiveDataConfig,
       ...config,
     };
   }
@@ -170,9 +168,14 @@ export class SanitizationService {
     }
 
     try {
+      // Flatten allowedAttributes to array for DOMPurify
+      const allowedAttrs = this.config.html.allowedAttributes
+        ? Object.values(this.config.html.allowedAttributes).flat()
+        : undefined;
+
       return DOMPurifyServer.sanitize(html, {
         ALLOWED_TAGS: this.config.html.allowedTags,
-        ALLOWED_ATTR: this.config.html.allowedAttributes,
+        ALLOWED_ATTR: allowedAttrs,
         ALLOW_DATA_ATTR: false,
         ALLOW_UNKNOWN_PROTOCOLS: false,
         SANITIZE_DOM: true,
@@ -250,7 +253,7 @@ export class SanitizationService {
       '/': '&#x2F;',
     };
 
-    return text.replace(/[&<>"'/]/g, (match) => htmlEscapes[match]);
+    return text.replace(/[&<>"'/]/g, (match) => htmlEscapes[match]!);
   }
 
   /**
@@ -346,8 +349,8 @@ export class SanitizationService {
       ...config,
       html: { ...this.config.html, ...config.html },
       sql: { ...this.config.sql, ...config.sql },
-      xss: { ...this.config.xss, ...config.xss },
-      sensitive: { ...this.config.sensitive, ...config.sensitive },
+      xss: { ...this.config.xss, ...config.xss } as XssProtectionConfig,
+      sensitive: { ...this.config.sensitive, ...config.sensitive } as SensitiveDataConfig,
     };
   }
 

@@ -4,7 +4,7 @@
  * Provides structured logging with different levels and formats
  */
 
-import winston from 'winston';
+import * as winston from 'winston';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -72,9 +72,9 @@ export class Logger {
     if (this.config.enableFile) {
       transports.push(
         new winston.transports.File({
-          filename: this.config.filePath,
-          maxsize: this.parseSize(this.config.maxSize || '10m'),
-          maxFiles: this.config.maxFiles,
+          filename: this.config.filePath!,
+          maxsize: this.parseSize(this.config.maxSize!),
+          maxFiles: this.config.maxFiles!,
           format: winston.format.combine(
             winston.format.timestamp(),
             winston.format.json()
@@ -84,7 +84,7 @@ export class Logger {
     }
 
     return winston.createLogger({
-      level: this.config.level,
+      level: this.config.level!,
       format: winston.format.combine(
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
@@ -110,7 +110,7 @@ export class Logger {
       return 10 * 1024 * 1024; // Default 10MB
     }
 
-    const value = parseInt(match[1]);
+    const value = parseInt(match[1]!);
     const unit = (match[2] || 'b').toLowerCase();
 
     return value * (units[unit] || 1);
@@ -143,13 +143,13 @@ export class Logger {
   public error(message: string, error?: Error | any, meta?: Record<string, any>): void {
     const errorMeta = error instanceof Error
       ? {
-          error: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name,
-          },
-          ...meta,
-        }
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+        },
+        ...meta,
+      }
       : { error, ...meta };
 
     this.logger.error(message, errorMeta);

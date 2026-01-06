@@ -226,7 +226,7 @@ export interface AuditServiceConfig {
 
 export interface AuditContext {
     user?: User | null;
-    tenant?: TenantContext;
+    tenant?: TenantContext | undefined;
     request?: Request;
     traceId?: string;
     metadata?: Record<string, any>;

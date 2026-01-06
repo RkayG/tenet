@@ -4,12 +4,11 @@
  * Orchestrates caching between Redis and memory cache with fallback strategies
  */
 
-import { CacheEntry } from '../core/types';
 import { RedisCache, RedisCacheConfig } from './redis';
 import { MemoryCache, MemoryCacheConfig } from './memory';
 
 export interface CacheManagerConfig {
-  provider: 'redis' | 'memory' | 'auto';
+  provider?: 'redis' | 'memory' | 'auto';
   redis?: RedisCacheConfig;
   memory?: MemoryCacheConfig;
   fallbackToMemory?: boolean;
@@ -17,16 +16,16 @@ export interface CacheManagerConfig {
 
 export class CacheManager {
   private static instance: CacheManager;
-  private config: Required<CacheManagerConfig>;
+  private config: CacheManagerConfig & { provider: 'redis' | 'memory' | 'auto'; fallbackToMemory: boolean };
   private redisCache?: RedisCache;
   private memoryCache?: MemoryCache;
-  private primaryCache: 'redis' | 'memory';
+  private primaryCache: 'redis' | 'memory' = 'memory';
 
   private constructor(config: CacheManagerConfig = {}) {
     this.config = {
       provider: config.provider || 'auto',
-      redis: config.redis || {},
-      memory: config.memory || {},
+      ...(config.redis && { redis: config.redis }),
+      ...(config.memory && { memory: config.memory }),
       fallbackToMemory: config.fallbackToMemory !== false,
     };
 
@@ -303,7 +302,7 @@ export class CacheManager {
           healthy = true;
           message = 'Memory cache fallback healthy';
         }
-      } catch (error) {
+      } catch (error: any) {
         details.redis_error = error.message;
       }
     }
@@ -314,7 +313,7 @@ export class CacheManager {
         details.memory = memoryStats;
         healthy = true;
         message = 'Memory cache healthy';
-      } catch (error) {
+      } catch (error: any) {
         details.memory_error = error.message;
       }
     }

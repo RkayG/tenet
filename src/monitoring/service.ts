@@ -252,8 +252,8 @@ export class MonitoringService {
       message: hasUnhealthy
         ? 'Some services are unhealthy'
         : hasDegraded
-        ? 'Some services are degraded'
-        : 'All services are healthy',
+          ? 'Some services are degraded'
+          : 'All services are healthy',
       timestamp: new Date(),
       details: checks.reduce((acc, check) => {
         acc[check.name] = check;

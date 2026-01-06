@@ -129,10 +129,9 @@ export class JWTStrategy implements AuthStrategy {
     return {
       id: payload.sub || payload.id,
       email: payload.email,
-      brand_id: payload.brand_id,
+      tenant_id: payload.tenant_id,
       role: payload.role,
       permissions: payload.permissions,
-      tenant_id: payload.tenant_id,
       metadata: payload.metadata,
       is_active: payload.is_active !== false,
     };
@@ -145,18 +144,19 @@ export class JWTStrategy implements AuthStrategy {
     const payload = {
       sub: user.id,
       email: user.email,
-      brand_id: user.brand_id,
+      tenant_id: user.tenant_id,
       role: user.role,
       permissions: user.permissions,
-      tenant_id: user.tenant_id,
       metadata: user.metadata,
     };
 
+    const expiresIn: string = this.config.expiresIn || '1h';
+
     return jwt.sign(payload, this.config.secret, {
-      expiresIn: this.config.expiresIn || '1h',
-      issuer: this.config.issuer,
-      audience: this.config.audience,
-    });
+      expiresIn,
+      ...(this.config.issuer && { issuer: this.config.issuer }),
+      ...(this.config.audience && { audience: this.config.audience }),
+    } as jwt.SignOptions);
   }
 
   /**
@@ -168,10 +168,12 @@ export class JWTStrategy implements AuthStrategy {
       type: 'refresh',
     };
 
+    const expiresIn: string = this.config.refreshExpiresIn || '7d';
+
     return jwt.sign(payload, this.config.secret, {
-      expiresIn: this.config.refreshExpiresIn || '7d',
-      issuer: this.config.issuer,
-      audience: this.config.audience,
-    });
+      expiresIn,
+      ...(this.config.issuer && { issuer: this.config.issuer }),
+      ...(this.config.audience && { audience: this.config.audience }),
+    } as jwt.SignOptions);
   }
 }

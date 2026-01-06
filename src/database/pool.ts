@@ -179,7 +179,7 @@ export class ConnectionPool {
   private async removeConnection(connection: PoolConnection): Promise<void> {
     try {
       await connection.client.$disconnect();
-      
+
       const index = this.connections.indexOf(connection);
       if (index !== -1) {
         this.connections.splice(index, 1);
@@ -200,7 +200,7 @@ export class ConnectionPool {
       for (const connection of this.connections) {
         if (!connection.inUse) {
           const idleTime = now.getTime() - connection.lastUsed.getTime();
-          
+
           if (idleTime > idleTimeout) {
             // Don't remove if we're at minimum size
             if (this.connections.length > Math.floor(this.config.size / 2)) {
@@ -336,7 +336,7 @@ export class ConnectionPool {
       status: healthStatus,
       details: {
         ...status,
-        errors: errors.length > 0 ? errors : undefined,
+        ...(errors.length > 0 && { errors }),
       },
     };
   }

@@ -16,7 +16,7 @@ export class MemoryCache {
   private static instance: MemoryCache;
   private store = new Map<string, CacheEntry>();
   private config: Required<MemoryCacheConfig>;
-  private cleanupTimer?: NodeJS.Timeout;
+  private cleanupTimer?: NodeJS.Timeout | undefined;
 
   private constructor(config: MemoryCacheConfig = {}) {
     this.config = {

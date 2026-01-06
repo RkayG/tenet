@@ -15,7 +15,7 @@ import { ApiResponse, ApiError, ApiMeta, ErrorCode } from './types';
 export function successResponse<T = any>(
   res: Response,
   data: T,
-  message?: string,
+  _message?: string,
   status: number = 200,
   meta?: Partial<ApiMeta>
 ): Response<ApiResponse<T>> {
@@ -47,8 +47,8 @@ export function errorResponse(
   const error: ApiError = {
     code,
     message,
-    details,
-    traceId,
+    ...(details && { details }),
+    ...(traceId && { traceId }),
   };
 
   const response: ApiResponse = {
