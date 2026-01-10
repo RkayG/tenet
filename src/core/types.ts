@@ -40,6 +40,20 @@ export interface AuthStrategy {
 // ============================================
 
 export interface HandlerConfig<TInput = unknown, TOutput = unknown> {
+  /**
+   * Security preset to use (optional)
+   * Provides pre-configured security settings that can be overridden
+   * 
+   * Available presets:
+   * - 'public': No auth, IP rate limiting
+   * - 'authenticated': Basic auth + CSRF
+   * - 'admin': Superadmin only
+   * - 'tenant': Multi-tenant with auto-scoping
+   * - 'readonly': GET requests with caching
+   * - 'highSecurity': Payments, idempotency required
+   */
+  preset?: 'public' | 'authenticated' | 'admin' | 'tenant' | 'readonly' | 'highSecurity';
+
   /** Zod schema for input validation */
   schema?: z.ZodSchema<TInput>;
 
@@ -81,6 +95,38 @@ export interface HandlerConfig<TInput = unknown, TOutput = unknown> {
 
   /** Audit trail configuration */
   auditConfig?: AuditConfig;
+
+  /**
+   * Validate that user's role is scoped to the current tenant
+   * Prevents cross-tenant role escalation attacks
+   * @default true (when multitenancy is enabled)
+   */
+  tenantRoleValidation?: boolean;
+
+  /**
+   * Automatically scope all database queries to current tenant
+   * Adds tenant_id filter to Prisma queries via middleware
+   * @default true (when using createTenantHandler)
+   */
+  autoTenantScope?: boolean;
+
+  /**
+   * Enable CSRF protection for state-changing requests
+   * @default true (for authenticated endpoints)
+   */
+  csrfProtection?: boolean;
+
+  /**
+   * Enable idempotency support
+   * @default false
+   */
+  idempotency?: boolean;
+
+  /**
+   * Request timeout in milliseconds
+   * @default 30000 (30 seconds)
+   */
+  timeout?: number;
 
   /** The actual request handler */
   handler: (ctx: HandlerContext<TInput>) => Promise<TOutput>;
@@ -225,6 +271,7 @@ export interface ApiMeta {
   requestId: string;
   executionTime?: number;
   cached?: boolean;
+  idempotent?: boolean;
 }
 
 export type ErrorCode =
@@ -236,7 +283,10 @@ export type ErrorCode =
   | 'RATE_LIMIT_EXCEEDED'
   | 'INTERNAL_ERROR'
   | 'SERVICE_UNAVAILABLE'
-  | 'BAD_REQUEST';
+  | 'BAD_REQUEST'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'UNSUPPORTED_MEDIA_TYPE'
+  | 'REQUEST_TIMEOUT';
 
 // ============================================
 // Security and Sanitization Types

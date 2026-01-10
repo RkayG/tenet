@@ -177,9 +177,9 @@ export class AuditService {
                 category: AuditCategory.AUTH,
                 action: `auth.${action}`,
                 description: `User ${action}`,
-                userId,
+                ...(userId ? { userId } : {}),
                 status: success ? AuditStatus.SUCCESS : AuditStatus.FAILURE,
-                errorMessage,
+                ...(errorMessage ? { errorMessage } : {}),
                 severity: success ? AuditSeverity.INFO : AuditSeverity.WARNING,
                 retentionCategory: 'auth',
             },
@@ -204,7 +204,7 @@ export class AuditService {
                 action,
                 description,
                 severity,
-                metadata,
+                ...(metadata ? { metadata } : {}),
                 status: AuditStatus.SUCCESS,
                 retentionCategory: 'security',
             },
@@ -344,10 +344,10 @@ export class AuditService {
         ]);
 
         return {
-            logs: logs as AuditLog[],
+            logs: logs as unknown as AuditLog[],
             total,
-            page: page !== undefined ? page : undefined,
-            pageSize: page !== undefined ? pageSize : undefined,
+            ...(page !== undefined ? { page } : {}),
+            ...(pageSize !== undefined ? { pageSize } : {}),
             hasMore: actualOffset + logs.length < total,
         };
     }
@@ -451,7 +451,7 @@ export class AuditService {
             // User context
             if (context.user && !enriched.userId) {
                 enriched.userId = context.user.id;
-                enriched.userName = context.user.name;
+                // Note: User type doesn't have 'name' property
                 enriched.userEmail = context.user.email;
             }
 
@@ -463,11 +463,16 @@ export class AuditService {
 
             // Request context
             if (context.request) {
-                enriched.ipAddress = enriched.ipAddress || context.request.ip || context.request.socket?.remoteAddress;
-                enriched.userAgent = enriched.userAgent || context.request.headers['user-agent'];
-                enriched.method = enriched.method || context.request.method;
-                enriched.endpoint = enriched.endpoint || context.request.path;
-                enriched.requestId = enriched.requestId || (context.request as any).id || context.traceId;
+                const ipAddress = context.request.ip || context.request.socket?.remoteAddress;
+                const userAgent = context.request.headers['user-agent'];
+
+                if (ipAddress && !enriched.ipAddress) enriched.ipAddress = ipAddress;
+                if (userAgent && !enriched.userAgent) enriched.userAgent = userAgent;
+                if (context.request.method && !enriched.method) enriched.method = context.request.method;
+                if (context.request.path && !enriched.endpoint) enriched.endpoint = context.request.path;
+
+                const requestId = (context.request as any).id || context.traceId;
+                if (requestId && !enriched.requestId) enriched.requestId = requestId;
             }
 
             // Merge metadata

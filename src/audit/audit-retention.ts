@@ -53,7 +53,7 @@ export class AuditRetentionManager {
     public stopAutomaticCleanup(): void {
         if (this.cleanupInterval) {
             clearInterval(this.cleanupInterval);
-            this.cleanupInterval = undefined;
+            delete this.cleanupInterval;
             this.logger.info('Stopped automatic audit log cleanup');
         }
     }
