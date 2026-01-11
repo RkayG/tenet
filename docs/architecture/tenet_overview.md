@@ -5,7 +5,7 @@ Tenet is an **opinionated, enterprise-grade API framework** built for Node.js. I
 ## 🧠 Core Philosophy
 
 ### 1. Security by Default
-Most frameworks require you to "opt-in" to security checks. In Tenet, security is **opt-out**. By default, every handler you create has:
+In Tenet, security is **opt-out**. By default, every handler you create has:
 - Strict input sanitization
 - Authentication checks
 - CSRF protection (for mutations)
@@ -55,17 +55,17 @@ When a request hits a Tenet API endpoint, it traverses a sophisticated pipeline 
 
 ```mermaid
 graph TD
-    A[Incoming Request] --> B[Security Headers (Helmet)]
-    B --> C[Rate Limiting (Redis)]
-    C --> D[Input Sanitization (XSS/SQLi)]
-    D --> E[Authentication (JWT/API Key)]
+    A[Incoming Request] --> B["Security Headers (Helmet)"]
+    B --> C["Rate Limiting (Redis)"]
+    C --> D["Input Sanitization (XSS/SQLi)"]
+    D --> E["Authentication (JWT/API Key)"]
     E --> F[Tenant Resolution]
     F --> G[Tenant Authorization]
-    G --> H[Input Validation (Zod)]
-    H --> I[Audit Log (Start)]
+    G --> H["Input Validation (Zod)"]
+    H --> I["Audit Log (Start)"]
     I --> J{Business Logic}
     J --> K[Response]
-    K --> L[Audit Log (Complete)]
+    K --> L["Audit Log (Complete)"]
 ```
 
 ### 1. The Shield (Outer Layer)
