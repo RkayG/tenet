@@ -27,7 +27,7 @@ export class RedisRateLimiter {
   private constructor() {
     this.redis = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
-      password: process.env.REDIS_PASSWORD,
+      password: process.env.REDIS_PASSWORD || '',
     });
 
     this.redis.on('error', (err) => {
@@ -67,14 +67,14 @@ export class RedisRateLimiter {
       const member = `${now}:${Math.random()}`;
 
       // Add current request to the window
-      await this.redis.zadd(windowKey, now, member);
+      await this.redis.zAdd(windowKey, now, member);
 
       // Remove requests outside the current window
       const windowStart = now - windowMs;
-      await this.redis.zremrangebyscore(windowKey, 0, windowStart);
+      await this.redis.zRemRangeByScore(windowKey, 0, windowStart);
 
       // Count requests in current window
-      const requestCount = await this.redis.zcount(windowKey, windowStart, now);
+      const requestCount = await this.redis.zCount(windowKey, windowStart, now);
 
       // Set expiration on the key (cleanup)
       await this.redis.expire(windowKey, Math.ceil(windowMs / 1000) * 2);
@@ -103,13 +103,13 @@ export class RedisRateLimiter {
 
       // Clean old entries
       const windowStart = now - windowMs;
-      await this.redis.zremrangebyscore(windowKey, 0, windowStart);
+      await this.redis.zRemRangeByScore(windowKey, 0, windowStart);
 
       // Get current count
-      const requestCount = await this.redis.zcount(windowKey, windowStart, now);
+      const requestCount = await this.redis.zCount(windowKey, windowStart, now);
 
       // Calculate reset time
-      const oldestRequest = await this.redis.zrange(windowKey, 0, 0, 'WITHSCORES');
+      const oldestRequest = await this.redis.zRange(windowKey, 0, 0, 'WITHSCORES');
       const resetTime = oldestRequest.length > 0
         ? new Date(parseInt(oldestRequest[1]) + windowMs)
         : new Date(now + windowMs);
@@ -249,7 +249,7 @@ export class RedisRateLimiter {
     for (const line of lines) {
       if (line.includes(':')) {
         const [key, value] = line.split(':');
-        parsed[key] = value;
+        parsed[key as string] = value;
       }
     }
 
@@ -279,7 +279,7 @@ export class MemoryRateLimiter {
   private static instance: MemoryRateLimiter;
   private store = new Map<string, { count: number; resetTime: number }>();
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): MemoryRateLimiter {
     if (!MemoryRateLimiter.instance) {

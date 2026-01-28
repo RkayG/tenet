@@ -9,6 +9,8 @@ Each module should follow this standardized structure:
 ```
 modules/
 └── your-module-name/
+    ├── dtos/
+    │   └── your-module-dtos.ts       # API response structures
     ├── routes/
     │   └── your-module-routes.ts    # Express route definitions
     ├── services/
@@ -126,8 +128,9 @@ export class TaskService {
 // Automatically requires authentication and multitenancy
 router.post('/tasks', createTenantHandler({
   schema: createTaskSchema,
-  handler: async ({ input, user }) => {
-    return await taskService.createTask(input, user.id, user.tenant_id);
+  handler: async ({ input, user, tenant, prisma }) => {
+    // Pass scoped prisma client to the service for automatic isolation
+    return await taskService.createTask(input, user.id, tenant.id, prisma);
   },
   auditConfig: {
     enabled: true,
@@ -138,9 +141,9 @@ router.post('/tasks', createTenantHandler({
 // Route with ownership verification
 router.get('/tasks/:id', createTenantHandler({
   requireOwnership: {
-    model: 'Task',
+    model: 'task',            // Use lowercase model names
     resourceIdParam: 'id',
-    ownerIdField: 'tenantId',
+    tenantIdField: 'tenantId', // Use tenantIdField for multi-tenant isolation
   },
   handler: async ({ resource }) => {
     return resource; // Already loaded and verified
@@ -150,15 +153,10 @@ router.get('/tasks/:id', createTenantHandler({
 
 ## 🚀 Creating a New Module
 
-### Step 1: Create Directory Structure
-```bash
 mkdir -p src/modules/your-module/routes
 mkdir -p src/modules/your-module/services
 mkdir -p src/modules/your-module/validators
-```
-
-### Step 2: Create Validators
-Define your Zod schemas in `validators/your-module-validators.ts`:
+mkdir -p src/modules/your-module/dtos
 
 ```typescript
 import { z } from 'zod';
@@ -204,19 +202,19 @@ export class YourModuleService {
 ### Step 4: Create Routes
 Define Express routes in `routes/your-module-routes.ts`:
 
-```typescript
 import { Router } from 'express';
 import { createTenantHandler } from '../../../core/handler';
 import { YourModuleService } from '../services/your-module-service';
 import { createItemSchema } from '../validators/your-module-validators';
+import { createItemDto } from '../dtos/your-module-dtos';
 
 const router = Router();
 const service = YourModuleService.getInstance();
 
 router.post('/items', createTenantHandler({
   schema: createItemSchema,
-  handler: async ({ input, user }) => {
-    return await service.createItem(input, user.id, user.tenant_id);
+  handler: async ({ input, user, tenant, prisma }) => {
+    return await service.createItem(input, user.id, tenant.id, prisma);
   },
 }));
 
@@ -253,9 +251,9 @@ router.post('/items', async (req, res) => {
 // ✅ GOOD
 router.get('/items/:id', createTenantHandler({
   requireOwnership: {
-    model: 'Item',
+    model: 'item',
     resourceIdParam: 'id',
-    ownerIdField: 'tenantId',
+    tenantIdField: 'tenantId',
   },
   handler: async ({ resource }) => resource,
 }));
