@@ -4,19 +4,6 @@
  * High-level abstraction for creating consistent, secure API routes with
  * authentication, validation, ownership checks, sanitization, encryption,
  * rate limiting, caching, and observability.
- *
- * SECURITY ENHANCEMENTS:
- * - Fixed hardcoded encryption key vulnerability
- * - Fixed Prisma middleware race condition
- * - Fixed cache poisoning with tenant isolation
- * - Added SQL injection protection
- * - Added transaction support
- * - Added CSRF protection
- * - Fixed monitoring span leaks
- * - Added request timeouts
- * - Added idempotency support
- * - Deep cloning for audit trail
- * - Improved error sanitization
  */
 
 import { z } from 'zod';
@@ -70,14 +57,6 @@ const ALLOWED_PRISMA_MODELS = [
 ] as const;
 
 type AllowedModel = typeof ALLOWED_PRISMA_MODELS[number];
-
-const TENANT_SCOPED_MODELS = new Set([
-  'project',
-  'task',
-  'auditLog',
-  'document',
-  'comment',
-]);
 
 const DEFAULT_REQUEST_TIMEOUT = 30000; // 30 seconds
 const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10MB
@@ -301,69 +280,6 @@ async function getPrismaClient(
   return globalPrisma;
 }
 
-// ============================================
-// Prisma Middleware Factory
-// ============================================
-
-/**
- * Create tenant-scoping middleware (should be applied once during initialization)
- */
-function createTenantScopingMiddleware(tenantId: string) {
-  return async (params: any, next: any) => {
-    const modelName = params.model?.toLowerCase();
-
-    if (modelName && TENANT_SCOPED_MODELS.has(modelName)) {
-      // Add tenant filter to WHERE clause
-      if (['findMany', 'findFirst', 'findUnique', 'count', 'aggregate'].includes(params.action)) {
-        params.args.where = {
-          ...params.args.where,
-          tenantId,
-        };
-      }
-
-      // Add tenant to CREATE operations
-      if (params.action === 'create') {
-        params.args.data = {
-          ...params.args.data,
-          tenantId,
-        };
-      }
-
-      // Add tenant to CREATE MANY operations
-      if (params.action === 'createMany') {
-        if (Array.isArray(params.args.data)) {
-          params.args.data = params.args.data.map((item: any) => ({
-            ...item,
-            tenantId,
-          }));
-        } else {
-          params.args.data = {
-            ...params.args.data,
-            tenantId,
-          };
-        }
-      }
-
-      // Add tenant to UPDATE operations
-      if (['update', 'updateMany'].includes(params.action)) {
-        params.args.where = {
-          ...params.args.where,
-          tenantId,
-        };
-      }
-
-      // Add tenant to DELETE operations
-      if (['delete', 'deleteMany'].includes(params.action)) {
-        params.args.where = {
-          ...params.args.where,
-          tenantId,
-        };
-      }
-    }
-
-    return next(params);
-  };
-}
 
 // ============================================
 // Main Handler Factory 
@@ -378,18 +294,6 @@ function createTenantScopingMiddleware(tenantId: string) {
  * - createAuthenticatedHandler() for authenticated endpoints
  * - createSuperAdminHandler() for admin-only endpoints
  * - createTenantHandler() for tenant-scoped endpoints
- *
- * SECURITY ENHANCEMENTS:
- * - Fixed encryption key validation
- * - Fixed Prisma middleware race conditions
- * - Fixed cache poisoning
- * - Added SQL injection protection
- * - Added CSRF protection
- * - Added request timeouts
- * - Added idempotency support
- * - Improved error sanitization
- * - Fixed monitoring span leaks
- * - Deep cloning for audit trail
  */
 function _createHandler<TInput = unknown, TOutput = unknown>(
   config: HandlerConfig<TInput, TOutput>,
