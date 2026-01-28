@@ -329,14 +329,19 @@ export class CacheManager {
    * Switch primary cache provider
    */
   public async switchProvider(provider: 'redis' | 'memory'): Promise<boolean> {
-    if (provider === 'redis' && !this.redisCache) {
-      try {
-        this.redisCache = RedisCache.getInstance(this.config.redis);
+    if (provider === 'redis') {
+      if (!this.redisCache) {
+        try {
+          this.redisCache = RedisCache.getInstance(this.config.redis);
+        } catch (error) {
+          console.error('Failed to switch to Redis:', error);
+          return false;
+        }
+      }
+
+      if (this.redisCache) {
         this.primaryCache = 'redis';
         return true;
-      } catch (error) {
-        console.error('Failed to switch to Redis:', error);
-        return false;
       }
     }
 

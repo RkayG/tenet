@@ -5,12 +5,33 @@
  */
 
 import { ConnectionPool } from '../../../src/database/pool';
-import { mockPrismaClient } from '../../utils/test-helpers';
 
 // Mock Prisma Client
 jest.mock('@prisma/client', () => ({
-    PrismaClient: jest.fn().mockImplementation(() => mockPrismaClient()),
+    PrismaClient: jest.fn().mockImplementation(() => ({
+        $connect: jest.fn().mockResolvedValue(undefined),
+        $disconnect: jest.fn().mockResolvedValue(undefined),
+        $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+        user: {
+            findUnique: jest.fn(),
+            findMany: jest.fn(),
+            create: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+        },
+        auditLog: {
+            create: jest.fn(),
+            findMany: jest.fn(),
+        },
+    })),
 }));
+
+// Helper to create mock Prisma client for tests
+const createMockPrismaClient = () => ({
+    $connect: jest.fn().mockResolvedValue(undefined),
+    $disconnect: jest.fn().mockResolvedValue(undefined),
+    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+});
 
 describe('Connection Pool', () => {
     let pool: ConnectionPool;
@@ -146,7 +167,7 @@ describe('Connection Pool', () => {
         });
 
         it('should handle release of unknown connection', async () => {
-            const unknownClient = mockPrismaClient();
+            const unknownClient = createMockPrismaClient();
 
             // Should not throw
             await expect(pool.release(unknownClient as any)).resolves.not.toThrow();

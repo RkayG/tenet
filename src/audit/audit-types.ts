@@ -63,47 +63,31 @@ export interface AuditEventData {
     eventType: AuditEventType;
     category: AuditCategory;
     action: string;
-    description?: string;
-
-    // Context Information
-    userId?: string;
-    userName?: string;
-    userEmail?: string;
-    tenantId?: string;
-    tenantName?: string;
-
-    // Request Context
-    ipAddress?: string;
-    userAgent?: string;
-    requestId?: string;
-    method?: string;
-    endpoint?: string;
-
-    // Resource Information
-    resourceType?: string;
-    resourceId?: string;
-
-    // Data Change Tracking
-    oldData?: any;
-    newData?: any;
-    changes?: any;
-
-    // Status and Result
-    status?: AuditStatus;
-    statusCode?: number;
-    errorMessage?: string;
-
-    // Metadata
-    metadata?: Record<string, any>;
-    tags?: string[];
-
-    // Compliance and Retention
-    severity?: AuditSeverity;
-    retentionCategory?: string;
-    expiresAt?: Date;
-
-    // Performance Tracking
-    executionTimeMs?: number;
+    description?: string | undefined;
+    userId?: string | undefined;
+    userName?: string | undefined;
+    userEmail?: string | undefined;
+    tenantId?: string | undefined;
+    tenantName?: string | undefined;
+    ipAddress?: string | undefined;
+    userAgent?: string | undefined;
+    requestId?: string | undefined;
+    method?: string | undefined;
+    endpoint?: string | undefined;
+    resourceType?: string | undefined;
+    resourceId?: string | undefined;
+    oldData?: any | undefined;
+    newData?: any | undefined;
+    changes?: any | undefined;
+    status?: AuditStatus | undefined;
+    statusCode?: number | undefined;
+    errorMessage?: string | undefined;
+    metadata?: Record<string, any> | undefined;
+    tags?: string[] | undefined;
+    severity?: AuditSeverity | undefined;
+    retentionCategory?: string | undefined;
+    expiresAt?: Date | undefined;
+    executionTimeMs?: number | undefined;
 }
 
 export interface AuditLog extends AuditEventData {
@@ -117,43 +101,29 @@ export interface AuditLog extends AuditEventData {
 
 export interface AuditQueryFilter {
     // User and Tenant filters
-    userId?: string;
-    userIds?: string[];
-    tenantId?: string;
-    tenantIds?: string[];
-
-    // Event filters
-    eventType?: AuditEventType;
-    eventTypes?: AuditEventType[];
-    category?: AuditCategory;
-    categories?: AuditCategory[];
-    action?: string;
-    actions?: string[];
-
-    // Resource filters
-    resourceType?: string;
-    resourceId?: string;
-
-    // Status filters
-    status?: AuditStatus;
-    statuses?: AuditStatus[];
-    severity?: AuditSeverity;
-    severities?: AuditSeverity[];
-
-    // Time range filters
-    startDate?: Date;
-    endDate?: Date;
-
-    // Search
-    searchTerm?: string; // Search in action, description, metadata
-
-    // Tags
-    tags?: string[];
-    hasAllTags?: boolean; // If true, require all tags; if false, require any tag
-
-    // Request context
-    ipAddress?: string;
-    requestId?: string;
+    userId?: string | undefined;
+    userIds?: string[] | undefined;
+    tenantId?: string | undefined;
+    tenantIds?: string[] | undefined;
+    eventType?: AuditEventType | undefined;
+    eventTypes?: AuditEventType[] | undefined;
+    category?: AuditCategory | undefined;
+    categories?: AuditCategory[] | undefined;
+    action?: string | undefined;
+    actions?: string[] | undefined;
+    resourceType?: string | undefined;
+    resourceId?: string | undefined;
+    status?: AuditStatus | undefined;
+    statuses?: AuditStatus[] | undefined;
+    severity?: AuditSeverity | undefined;
+    severities?: AuditSeverity[] | undefined;
+    startDate?: Date | undefined;
+    endDate?: Date | undefined;
+    searchTerm?: string | undefined;
+    tags?: string[] | undefined;
+    hasAllTags?: boolean | undefined;
+    ipAddress?: string | undefined;
+    requestId?: string | undefined;
 }
 
 export interface AuditQueryOptions {

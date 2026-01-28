@@ -4,13 +4,13 @@
  * Common mocks and utilities for unit tests
  */
 
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { User, TenantContext } from '../../src/core/types';
 
 /**
  * Mock Express Request
  */
-export const mockRequest = (overrides: Partial<Request> = {}): Partial<Request> => ({
+export const mockRequest = (overrides: any = {}): any => ({
     body: {},
     query: {},
     params: {},
@@ -27,7 +27,7 @@ export const mockRequest = (overrides: Partial<Request> = {}): Partial<Request> 
         return (this as any).headers[name.toLowerCase()] || undefined;
     },
     ...overrides,
-});
+} as any);
 
 /**
  * Mock Express Response
@@ -61,8 +61,9 @@ export const mockUser = (overrides: Partial<User> = {}): User => ({
 export const mockTenant = (overrides: Partial<TenantContext> = {}): TenantContext => ({
     id: 'tenant-123',
     name: 'Test Tenant',
+    config: {},
     ...overrides,
-});
+} as TenantContext);
 
 /**
  * Mock JWT Token

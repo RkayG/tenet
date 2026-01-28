@@ -136,9 +136,11 @@ describe('Cache Manager', () => {
         it('should switch providers dynamically', async () => {
             const switched = await cacheManager.switchProvider('memory');
             expect(switched).toBe(true);
+            expect(cacheManager.getProviderInfo().primary).toBe('memory');
 
-            const info = cacheManager.getProviderInfo();
-            expect(info.primary).toBe('memory');
+            const switchedBack = await cacheManager.switchProvider('redis');
+            expect(switchedBack).toBe(true);
+            expect(cacheManager.getProviderInfo().primary).toBe('redis');
         });
 
         it('should handle provider errors gracefully', async () => {
