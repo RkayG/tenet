@@ -38,10 +38,9 @@ router.get(
     '/tasks',
     createTenantHandler({
         schema: queryTasksSchema,
-        handler: async ({ input, user }) => {
-            // tenant_id is guaranteed by createTenantHandler
-            // user! is used because TypeScript doesn't know createTenantHandler guarantees existence
-            const result = await taskService.queryTasks(input, user!.tenant_id);
+        handler: async ({ input, tenant, prisma }) => {
+            // tenant is guaranteed by createTenantHandler
+            const result = await taskService.queryTasks(input as any, tenant!.id, prisma);
             return result;
         },
         auditConfig: {
@@ -61,9 +60,9 @@ router.get(
     '/tasks/:id',
     createTenantHandler({
         requireOwnership: {
-            model: 'Task',
+            model: 'task',
             resourceIdParam: 'id',
-            ownerIdField: 'tenantId',
+            tenantIdField: 'tenantId',
         },
         handler: async ({ resource }) => {
             // Resource is already verified and loaded by requireOwnership
@@ -86,8 +85,8 @@ router.post(
     '/tasks',
     createTenantHandler({
         schema: createTaskSchema,
-        handler: async ({ input, user }) => {
-            const task = await taskService.createTask(input, user!.id, user!.tenant_id);
+        handler: async ({ input, user, tenant, prisma }) => {
+            const task = await taskService.createTask(input as any, user!.id, tenant!.id, prisma);
             return task;
         },
         successStatus: 201,
@@ -110,12 +109,12 @@ router.patch(
     createTenantHandler({
         schema: updateTaskSchema,
         requireOwnership: {
-            model: 'Task',
+            model: 'task',
             resourceIdParam: 'id',
-            ownerIdField: 'tenantId',
+            tenantIdField: 'tenantId',
         },
-        handler: async ({ input, params, user }) => {
-            const task = await taskService.updateTask(params.id, input, user!.tenant_id);
+        handler: async ({ input, params, tenant, prisma }) => {
+            const task = await taskService.updateTask(params.id!, input as any, tenant!.id, prisma);
             return task;
         },
         auditConfig: {
@@ -137,12 +136,12 @@ router.delete(
     '/tasks/:id',
     createTenantHandler({
         requireOwnership: {
-            model: 'Task',
+            model: 'task',
             resourceIdParam: 'id',
-            ownerIdField: 'tenantId',
+            tenantIdField: 'tenantId',
         },
-        handler: async ({ params, user }) => {
-            const task = await taskService.deleteTask(params.id, user!.tenant_id);
+        handler: async ({ params, tenant, prisma }) => {
+            const task = await taskService.deleteTask(params.id!, tenant!.id, prisma);
             return { message: 'Task deleted successfully', task };
         },
         auditConfig: {
@@ -167,8 +166,8 @@ router.patch(
     '/tasks/bulk/status',
     createTenantHandler({
         schema: bulkUpdateStatusSchema,
-        handler: async ({ input, user }) => {
-            const result = await taskService.bulkUpdateStatus(input, user!.tenant_id);
+        handler: async ({ input, tenant, prisma }) => {
+            const result = await taskService.bulkUpdateStatus(input as any, tenant!.id, prisma);
             return result;
         },
         auditConfig: {
@@ -195,8 +194,8 @@ router.get(
         cache: {
             ttl: 300, // Cache for 5 minutes
         },
-        handler: async ({ user }) => {
-            const stats = await taskService.getTaskStats(user!.tenant_id);
+        handler: async ({ tenant, prisma }) => {
+            const stats = await taskService.getTaskStats(tenant!.id, prisma);
             return stats;
         },
         auditConfig: {

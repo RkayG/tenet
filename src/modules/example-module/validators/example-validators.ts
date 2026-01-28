@@ -50,7 +50,6 @@ export const createTaskSchema = z.object({
     }).default('MEDIUM'),
 
     status: z.enum(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE', 'CANCELLED'])
-        .optional()
         .default('TODO'),
 
     dueDate: z.coerce.date()
@@ -70,6 +69,8 @@ export const createTaskSchema = z.object({
         .positive('Estimated hours must be positive')
         .max(1000, 'Estimated hours must not exceed 1000')
         .optional(),
+
+    projectId: z.string().uuid('Invalid project ID'),
 });
 
 // ============================================

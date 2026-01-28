@@ -15,42 +15,45 @@ datasource db {
 // ============================================
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole @default(USER)
-  tenantId  String?
+  id       String   @id @default(cuid())
+  email    String   @unique
+  name     String
+  password String
+  role     UserRole @default(USER)
+  tenantId String?
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  tenant     Tenant?      @relation(fields: [tenantId], references: [id])
+  tenant            Tenant?        @relation(fields: [tenantId], references: [id])
   tenantMemberships TenantMember[]
-  projects   Project[]    @relation("ProjectMembers")
-  ownedProjects Project[] @relation("ProjectOwner")
-  assignedTasks Task[]
+  projects          Project[]      @relation("ProjectMembers")
+  ownedProjects     Project[]      @relation("ProjectOwner")
+  assignedTasks     Task[]
+  createdTasks      Task[]         @relation("TaskCreator")
+  comments          Comment[]
 
   @@map("users")
 }
 
 model Tenant {
-  id          String   @id @default(cuid())
-  name        String
-  domain      String?  @unique
-  config      Json     @default("{}")
-  isActive    Boolean  @default(true)
+  id       String  @id @default(cuid())
+  name     String
+  domain   String? @unique
+  config   Json    @default("{}")
+  isActive Boolean @default(true)
 
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  users       User[]
-  members     TenantMember[]
-  projects    Project[]
+  users    User[]
+  members  TenantMember[]
+  projects Project[]
+  tasks    Task[]
 
   @@map("tenants")
 }
@@ -60,25 +63,25 @@ model Tenant {
 // ============================================
 
 model TenantMember {
-  id        String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Membership
-  userId    String
-  tenantId  String
-  role      TenantRole @default(MEMBER)
-  
+  userId   String
+  tenantId String
+  role     TenantRole @default(MEMBER)
+
   // Status
-  isActive  Boolean  @default(true)
+  isActive  Boolean @default(true)
   invitedBy String?
-  
+
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   // Constraints
   @@unique([userId, tenantId])
   @@index([tenantId, role])
@@ -91,44 +94,53 @@ model TenantMember {
 // ============================================
 
 model Project {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
   status      ProjectStatus @default(PLANNING)
-  priority    Priority @default(MEDIUM)
-  tags        String[] @default([])
+  priority    Priority      @default(MEDIUM)
+  tags        String[]      @default([])
   tenantId    String?
   ownerId     String
 
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  tenant      Tenant?         @relation(fields: [tenantId], references: [id])
-  owner       User            @relation("ProjectOwner", fields: [ownerId], references: [id])
-  members     User[]          @relation("ProjectMembers")
-  tasks       Task[]
+  tenant  Tenant? @relation(fields: [tenantId], references: [id])
+  owner   User    @relation("ProjectOwner", fields: [ownerId], references: [id])
+  members User[]  @relation("ProjectMembers")
+  tasks   Task[]
 
   @@map("projects")
 }
 
 model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus @default(TODO)
-  priority    Priority @default(MEDIUM)
-  projectId   String
-  assigneeId  String?
+  id                   String     @id @default(cuid())
+  title                String
+  description          String?
+  status               TaskStatus @default(TODO)
+  priority             Priority   @default(MEDIUM)
+  projectId            String
+  assigneeId           String?
+  createdById          String
+  tenantId             String?
+  tags                 String[]   @default([])
+  estimatedHours       Float?
+  actualHours          Float?
+  completionPercentage Float      @default(0)
 
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  project     Project   @relation(fields: [projectId], references: [id])
-  assignee    User?     @relation(fields: [assigneeId], references: [id])
+  project   Project   @relation(fields: [projectId], references: [id])
+  assignee  User?     @relation(fields: [assigneeId], references: [id])
+  createdBy User      @relation("TaskCreator", fields: [createdById], references: [id])
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id])
+  comments  Comment[]
 
   @@map("tasks")
 }
@@ -155,6 +167,7 @@ enum TaskStatus {
   IN_PROGRESS
   REVIEW
   DONE
+  CANCELLED
 }
 
 enum Priority {
@@ -165,10 +178,10 @@ enum Priority {
 }
 
 enum TenantRole {
-  OWNER       // Full control over tenant
-  MANAGER     // Manage resources and members
-  MEMBER      // Standard member access
-  GUEST       // Limited read-only access
+  OWNER // Full control over tenant
+  MANAGER // Manage resources and members
+  MEMBER // Standard member access
+  GUEST // Limited read-only access
 }
 
 // ============================================
@@ -176,57 +189,57 @@ enum TenantRole {
 // ============================================
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Event Information
   eventType   AuditEventType
   category    AuditCategory
-  action      String              // e.g., "user.login", "project.update", "data.delete"
+  action      String // e.g., "user.login", "project.update", "data.delete"
   description String?
-  
+
   // Context Information
-  userId      String?
-  userName    String?             // Denormalized for historical accuracy
-  userEmail   String?             // Denormalized for historical accuracy
-  tenantId    String?
-  tenantName  String?             // Denormalized for historical accuracy
-  
+  userId     String?
+  userName   String? // Denormalized for historical accuracy
+  userEmail  String? // Denormalized for historical accuracy
+  tenantId   String?
+  tenantName String? // Denormalized for historical accuracy
+
   // Request Context
-  ipAddress   String?
-  userAgent   String?
-  requestId   String?
-  method      String?             // HTTP method: GET, POST, PUT, DELETE
-  endpoint    String?             // API endpoint path
-  
+  ipAddress String?
+  userAgent String?
+  requestId String?
+  method    String? // HTTP method: GET, POST, PUT, DELETE
+  endpoint  String? // API endpoint path
+
   // Resource Information
-  resourceType String?            // e.g., "Project", "User", "Task"
+  resourceType String? // e.g., "Project", "User", "Task"
   resourceId   String?
-  
+
   // Data Change Tracking
-  oldData     Json?               // Before state (for UPDATE/DELETE)
-  newData     Json?               // After state (for CREATE/UPDATE)
-  changes     Json?               // Computed diff of changes
-  
+  oldData Json? // Before state (for UPDATE/DELETE)
+  newData Json? // After state (for CREATE/UPDATE)
+  changes Json? // Computed diff of changes
+
   // Status and Result
-  status      AuditStatus @default(SUCCESS)
-  statusCode  Int?                // HTTP status code
+  status       AuditStatus @default(SUCCESS)
+  statusCode   Int? // HTTP status code
   errorMessage String?
-  
+
   // Metadata
-  metadata    Json?               // Additional custom metadata
-  tags        String[] @default([])
-  
+  metadata Json? // Additional custom metadata
+  tags     String[] @default([])
+
   // Compliance and Retention
-  severity    AuditSeverity @default(INFO)
-  retentionCategory String @default("general") // For retention policy management
-  expiresAt   DateTime?           // When this log should be deleted
-  
+  severity          AuditSeverity @default(INFO)
+  retentionCategory String        @default("general") // For retention policy management
+  expiresAt         DateTime? // When this log should be deleted
+
   // Performance Tracking
   executionTimeMs Int?
-  
+
   // Timestamps
-  createdAt   DateTime @default(now())
-  
+  createdAt DateTime @default(now())
+
   // Indexes for efficient querying
   @@index([userId, createdAt])
   @@index([tenantId, createdAt])
@@ -238,7 +251,6 @@ model AuditLog {
   @@index([expiresAt])
   @@index([requestId])
   @@index([createdAt])
-  
   @@map("audit_logs")
 }
 
@@ -247,44 +259,61 @@ model AuditLog {
 // ============================================
 
 enum AuditEventType {
-  CREATE      // Resource creation
-  READ        // Resource read/view
-  UPDATE      // Resource modification
-  DELETE      // Resource deletion
-  AUTH        // Authentication events
-  AUTHZ       // Authorization events
-  SECURITY    // Security-related events
-  SYSTEM      // System events
-  EXPORT      // Data export
-  IMPORT      // Data import
-  CONFIG      // Configuration changes
-  CUSTOM      // Custom events
+  CREATE // Resource creation
+  READ // Resource read/view
+  UPDATE // Resource modification
+  DELETE // Resource deletion
+  AUTH // Authentication events
+  AUTHZ // Authorization events
+  SECURITY // Security-related events
+  SYSTEM // System events
+  EXPORT // Data export
+  IMPORT // Data import
+  CONFIG // Configuration changes
+  CUSTOM // Custom events
 }
 
 enum AuditCategory {
-  DATA        // Data operations (CRUD)
-  AUTH        // Authentication
-  SECURITY    // Security events
-  SYSTEM      // System operations
-  COMPLIANCE  // Compliance-related
-  ADMIN       // Administrative actions
-  USER        // User actions
+  DATA // Data operations (CRUD)
+  AUTH // Authentication
+  SECURITY // Security events
+  SYSTEM // System operations
+  COMPLIANCE // Compliance-related
+  ADMIN // Administrative actions
+  USER // User actions
 }
 
 enum AuditStatus {
-  SUCCESS     // Operation succeeded
-  FAILURE     // Operation failed
-  PARTIAL     // Partial success
-  PENDING     // Operation pending
+  SUCCESS // Operation succeeded
+  FAILURE // Operation failed
+  PARTIAL // Partial success
+  PENDING // Operation pending
 }
 
 enum AuditSeverity {
-  DEBUG       // Debug information
-  INFO        // Informational
-  NOTICE      // Normal but significant
-  WARNING     // Warning conditions
-  ERROR       // Error conditions
-  CRITICAL    // Critical conditions
-  ALERT       // Action must be taken immediately
-  EMERGENCY   // System is unusable
+  DEBUG // Debug information
+  INFO // Informational
+  NOTICE // Normal but significant
+  WARNING // Warning conditions
+  ERROR // Error conditions
+  CRITICAL // Critical conditions
+  ALERT // Action must be taken immediately
+  EMERGENCY // System is unusable
+}
+
+model Comment {
+  id       String @id @default(cuid())
+  content  String
+  authorId String
+  taskId   String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  author User @relation(fields: [authorId], references: [id])
+  task   Task @relation(fields: [taskId], references: [id])
+
+  @@map("task_comments")
 }

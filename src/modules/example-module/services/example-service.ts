@@ -1,27 +1,28 @@
 /**
  * Task Module - Service
- * 
+ *
  * This service handles all business logic for task management.
  * It follows the singleton pattern and uses dependency injection for Prisma.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
 import {
-    CreateTaskInput,
-    UpdateTaskInput,
-    QueryTasksInput,
-    BulkUpdateStatusInput,
-    BulkAssignInput,
-} from '../validators/example-validators';
+  CreateTaskInput,
+  UpdateTaskInput,
+  QueryTasksInput,
+  BulkUpdateStatusInput,
+  BulkAssignInput,
+} from "../validators/example-validators";
+import { TaskDto, TaskStatsDto, TaskInListDto } from "../dtos/task.dto";
 
 // ============================================
 // Service Configuration
 // ============================================
 
 export interface TaskServiceConfig {
-    maxTasksPerUser?: number;
-    defaultPriority?: string;
-    enableNotifications?: boolean;
+  maxTasksPerUser?: number;
+  defaultPriority?: string;
+  enableNotifications?: boolean;
 }
 
 // ============================================
@@ -29,452 +30,566 @@ export interface TaskServiceConfig {
 // ============================================
 
 export class TaskService {
-    private static instance: TaskService;
-    private config: TaskServiceConfig;
-    private prisma: PrismaClient;
+  private static instance: TaskService;
+  private config: TaskServiceConfig;
+  private prisma: PrismaClient;
 
-    private constructor(config: TaskServiceConfig = {}, prisma?: PrismaClient) {
-        this.config = {
-            maxTasksPerUser: config.maxTasksPerUser ?? 1000,
-            defaultPriority: config.defaultPriority ?? 'MEDIUM',
-            enableNotifications: config.enableNotifications ?? true,
-        };
+  private constructor(config: TaskServiceConfig = {}, prisma?: PrismaClient) {
+    this.config = {
+      maxTasksPerUser: config.maxTasksPerUser ?? 1000,
+      defaultPriority: config.defaultPriority ?? "MEDIUM",
+      enableNotifications: config.enableNotifications ?? true,
+    };
 
-        // Use provided Prisma instance or global instance
-        this.prisma = prisma ?? (global as any).prisma ?? new PrismaClient();
+    // Use provided Prisma instance or global instance
+    this.prisma = prisma ?? (global as any).prisma ?? new PrismaClient();
+  }
+
+  /**
+   * Get singleton instance
+   */
+  public static getInstance(
+    config?: TaskServiceConfig,
+    prisma?: PrismaClient,
+  ): TaskService {
+    if (!TaskService.instance) {
+      TaskService.instance = new TaskService(config, prisma);
+    }
+    return TaskService.instance;
+  }
+
+  // ============================================
+  // CRUD Operations
+  // ============================================
+
+  /**
+   * Create a new task
+   */
+  public async createTask(
+    data: CreateTaskInput,
+    userId: string,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<TaskDto> {
+    const db = prisma || this.prisma;
+
+    // Check user's task limit
+    const userTaskCount = await db.task.count({
+      where: {
+        createdById: userId,
+        status: { not: "DONE" },
+      },
+    } as any);
+
+    if (userTaskCount >= (this.config.maxTasksPerUser ?? 1000)) {
+      throw new Error(
+        `Task limit reached. Maximum ${this.config.maxTasksPerUser} active tasks allowed.`,
+      );
     }
 
-    /**
-     * Get singleton instance
-     */
-    public static getInstance(config?: TaskServiceConfig, prisma?: PrismaClient): TaskService {
-        if (!TaskService.instance) {
-            TaskService.instance = new TaskService(config, prisma);
-        }
-        return TaskService.instance;
+    const include: any = {};
+    include.createdBy = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.assignee = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+
+    const taskData: any = {
+      ...data,
+      createdById: userId,
+      tenantId,
+      status: (data.status ?? "TODO") as any,
+      priority: (data.priority ?? this.config.defaultPriority) as any,
+    };
+
+    const task = await db.task.create({
+      data: taskData,
+      include,
+    } as any);
+
+    // Send notification if enabled
+    if (this.config.enableNotifications && data.assigneeId) {
+      await this.sendTaskAssignedNotification(task.id, data.assigneeId);
     }
 
-    // ============================================
-    // CRUD Operations
-    // ============================================
+    return task as unknown as TaskDto;
+  }
 
-    /**
-     * Create a new task
-     */
-    public async createTask(data: CreateTaskInput, userId: string, tenantId: string) {
-        // Check user's task limit
-        const userTaskCount = await this.prisma.task.count({
-            where: {
-                createdById: userId,
-                status: { not: 'DONE' },
-            },
-        });
+  /**
+   * Get task by ID
+   */
+  public async getTaskById(
+    taskId: string,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<TaskDto> {
+    const db = prisma || this.prisma;
+    const where: any = {};
+    where.id = taskId;
+    where.tenantId = tenantId;
 
-        if (userTaskCount >= (this.config.maxTasksPerUser ?? 1000)) {
-            throw new Error(`Task limit reached. Maximum ${this.config.maxTasksPerUser} active tasks allowed.`);
-        }
+    const include: any = {};
+    include.createdBy = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.assignee = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.comments = {
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        author: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    };
 
-        // Create the task
-        const task = await this.prisma.task.create({
-            data: {
-                ...data,
-                createdById: userId,
-                tenantId,
-                status: data.status ?? 'TODO',
-                priority: data.priority ?? this.config.defaultPriority,
-            },
-            include: {
-                createdBy: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-                assignee: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-            },
-        });
+    const task = await db.task.findFirst({
+      where,
+      include,
+    } as any);
 
-        // Send notification if enabled
-        if (this.config.enableNotifications && data.assigneeId) {
-            await this.sendTaskAssignedNotification(task.id, data.assigneeId);
-        }
-
-        return task;
+    if (!task) {
+      throw new Error("Task not found");
     }
 
-    /**
-     * Get task by ID
-     */
-    public async getTaskById(taskId: string, tenantId: string) {
-        const task = await this.prisma.task.findFirst({
-            where: {
-                id: taskId,
-                tenantId,
-            },
-            include: {
-                createdBy: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-                assignee: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-                comments: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 10,
-                    include: {
-                        author: {
-                            select: {
-                                id: true,
-                                email: true,
-                                name: true,
-                            },
-                        },
-                    },
-                },
-            },
-        });
+    return task as unknown as TaskDto;
+  }
 
-        if (!task) {
-            throw new Error('Task not found');
-        }
+  /**
+   * Query tasks with filters and pagination
+   */
+  public async queryTasks(
+    filters: QueryTasksInput,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<{
+    tasks: TaskInListDto[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      hasMore: boolean;
+    };
+  }> {
+    const db = prisma || this.prisma;
+    const {
+      status,
+      priority,
+      assigneeId,
+      tags,
+      dueBefore,
+      dueAfter,
+      createdAfter,
+      createdBefore,
+      search,
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = filters;
 
-        return task;
+    // Build where clause
+    const where: any = {};
+    where.tenantId = tenantId;
+
+    if (status) where.status = status;
+    if (priority) where.priority = priority;
+    if (assigneeId) where.assigneeId = assigneeId;
+
+    if (tags) {
+      const tagArray = tags.split(",").map((t) => t.trim());
+      where.tags = { hasSome: tagArray };
     }
 
-    /**
-     * Query tasks with filters and pagination
-     */
-    public async queryTasks(filters: QueryTasksInput, tenantId: string) {
-        const {
-            status,
-            priority,
-            assigneeId,
-            tags,
-            dueBefore,
-            dueAfter,
-            createdAfter,
-            createdBefore,
-            search,
-            page = 1,
-            limit = 20,
-            sortBy = 'createdAt',
-            sortOrder = 'desc',
-        } = filters;
-
-        // Build where clause
-        const where: any = {
-            tenantId,
-        };
-
-        if (status) where.status = status;
-        if (priority) where.priority = priority;
-        if (assigneeId) where.assigneeId = assigneeId;
-
-        if (tags) {
-            const tagArray = tags.split(',').map(t => t.trim());
-            where.tags = { hasSome: tagArray };
-        }
-
-        if (dueBefore || dueAfter) {
-            where.dueDate = {};
-            if (dueBefore) where.dueDate.lte = dueBefore;
-            if (dueAfter) where.dueDate.gte = dueAfter;
-        }
-
-        if (createdAfter || createdBefore) {
-            where.createdAt = {};
-            if (createdAfter) where.createdAt.gte = createdAfter;
-            if (createdBefore) where.createdAt.lte = createdBefore;
-        }
-
-        if (search) {
-            where.OR = [
-                { title: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-            ];
-        }
-
-        // Execute query with pagination
-        const [tasks, total] = await Promise.all([
-            this.prisma.task.findMany({
-                where,
-                include: {
-                    createdBy: {
-                        select: {
-                            id: true,
-                            email: true,
-                            name: true,
-                        },
-                    },
-                    assignee: {
-                        select: {
-                            id: true,
-                            email: true,
-                            name: true,
-                        },
-                    },
-                },
-                orderBy: { [sortBy]: sortOrder },
-                skip: (page - 1) * limit,
-                take: limit,
-            }),
-            this.prisma.task.count({ where }),
-        ]);
-
-        return {
-            tasks,
-            pagination: {
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit),
-                hasMore: page * limit < total,
-            },
-        };
+    if (dueBefore || dueAfter) {
+      where.dueDate = {};
+      if (dueBefore) where.dueDate.lte = dueBefore;
+      if (dueAfter) where.dueDate.gte = dueAfter;
     }
 
-    /**
-     * Update a task
-     */
-    public async updateTask(taskId: string, data: UpdateTaskInput, tenantId: string) {
-        // Verify task exists and belongs to brand
-        const existingTask = await this.getTaskById(taskId, tenantId);
-
-        // Update the task
-        const task = await this.prisma.task.update({
-            where: { id: taskId },
-            data: {
-                ...data,
-                updatedAt: new Date(),
-            },
-            include: {
-                createdBy: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-                assignee: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                    },
-                },
-            },
-        });
-
-        // Send notification if assignee changed
-        if (this.config.enableNotifications && data.assigneeId && data.assigneeId !== existingTask.assigneeId) {
-            await this.sendTaskAssignedNotification(task.id, data.assigneeId);
-        }
-
-        // Send notification if status changed to DONE
-        if (this.config.enableNotifications && data.status === 'DONE' && existingTask.status !== 'DONE') {
-            await this.sendTaskCompletedNotification(task.id, existingTask.createdById);
-        }
-
-        return task;
+    if (createdAfter || createdBefore) {
+      where.createdAt = {};
+      if (createdAfter) where.createdAt.gte = createdAfter;
+      if (createdBefore) where.createdAt.lte = createdBefore;
     }
 
-    /**
-     * Delete a task
-     */
-    public async deleteTask(taskId: string, tenantId: string) {
-        // Verify task exists and belongs to brand
-        await this.getTaskById(taskId, tenantId);
-
-        // Soft delete by marking as CANCELLED
-        const task = await this.prisma.task.update({
-            where: { id: taskId },
-            data: {
-                status: 'CANCELLED',
-                updatedAt: new Date(),
-            },
-        });
-
-        return task;
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ];
     }
 
-    // ============================================
-    // Bulk Operations
-    // ============================================
+    const include: any = {};
+    include.createdBy = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.assignee = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
 
-    /**
-     * Bulk update task status
-     */
-    public async bulkUpdateStatus(data: BulkUpdateStatusInput, tenantId: string) {
-        const { taskIds, status } = data;
+    const [tasks, total] = await Promise.all([
+      db.task.findMany({
+        where,
+        include,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * limit,
+        take: limit,
+      } as any),
+      db.task.count({ where } as any),
+    ]);
 
-        // Verify all tasks belong to the brand
-        const tasks = await this.prisma.task.findMany({
-            where: {
-                id: { in: taskIds },
-                tenantId,
-            },
-        });
+    return {
+      tasks: tasks as TaskInListDto[],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      },
+    };
+  }
 
-        if (tasks.length !== taskIds.length) {
-            throw new Error('Some tasks not found or access denied');
-        }
+  /**
+   * Update a task
+   */
+  public async updateTask(
+    taskId: string,
+    data: UpdateTaskInput,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<TaskDto> {
+    const db = prisma || this.prisma;
+    // Verify task exists and belongs to brand
+    const existingTask = await this.getTaskById(taskId, tenantId, db);
 
-        // Update all tasks
-        const result = await this.prisma.task.updateMany({
-            where: {
-                id: { in: taskIds },
-                tenantId,
-            },
-            data: {
-                status,
-                updatedAt: new Date(),
-            },
-        });
+    // Update the task
+    const updateData = Object.entries(data).reduce(
+      (acc, [key, value]) => {
+        if (value !== undefined) acc[key] = value;
+        return acc;
+      },
+      {} as Record<string, unknown>,
+    );
 
-        return {
-            updated: result.count,
-            taskIds,
-            status,
-        };
+    const include: any = {};
+    include.createdBy = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.assignee = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+
+    const task = await db.task.update({
+      where: { id: taskId } as any,
+      data: {
+        ...updateData,
+        updatedAt: new Date(),
+      },
+      include,
+    } as any);
+
+    // Send notification if assignee changed
+    if (
+      this.config.enableNotifications &&
+      data.assigneeId &&
+      data.assigneeId !== existingTask.assigneeId
+    ) {
+      await this.sendTaskAssignedNotification(task.id, data.assigneeId);
     }
 
-    /**
-     * Bulk assign tasks
-     */
-    public async bulkAssign(data: BulkAssignInput, tenantId: string) {
-        const { taskIds, assigneeId } = data;
-
-        // Verify assignee exists and belongs to brand
-        const assignee = await this.prisma.user.findFirst({
-            where: {
-                id: assigneeId,
-                tenantId,
-            },
-        });
-
-        if (!assignee) {
-            throw new Error('Assignee not found or access denied');
-        }
-
-        // Verify all tasks belong to the brand
-        const tasks = await this.prisma.task.findMany({
-            where: {
-                id: { in: taskIds },
-                tenantId,
-            },
-        });
-
-        if (tasks.length !== taskIds.length) {
-            throw new Error('Some tasks not found or access denied');
-        }
-
-        // Assign all tasks
-        const result = await this.prisma.task.updateMany({
-            where: {
-                id: { in: taskIds },
-                tenantId,
-            },
-            data: {
-                assigneeId,
-                updatedAt: new Date(),
-            },
-        });
-
-        // Send notification
-        if (this.config.enableNotifications) {
-            await this.sendBulkAssignmentNotification(taskIds, assigneeId);
-        }
-
-        return {
-            assigned: result.count,
-            taskIds,
-            assigneeId,
-        };
+    // Send notification if status changed to DONE
+    if (
+      this.config.enableNotifications &&
+      data.status === "DONE" &&
+      existingTask.status !== "DONE"
+    ) {
+      await this.sendTaskCompletedNotification(
+        task.id,
+        existingTask.createdById,
+      );
     }
 
-    // ============================================
-    // Task Statistics
-    // ============================================
+    return task as unknown as TaskDto;
+  }
 
-    /**
-     * Get task statistics for a brand
-     */
-    public async getTaskStats(tenantId: string) {
-        const [
-            totalTasks,
-            todoTasks,
-            inProgressTasks,
-            reviewTasks,
-            doneTasks,
-            overdueTasks,
-        ] = await Promise.all([
-            this.prisma.task.count({ where: { tenantId } }),
-            this.prisma.task.count({ where: { tenantId, status: 'TODO' } }),
-            this.prisma.task.count({ where: { tenantId, status: 'IN_PROGRESS' } }),
-            this.prisma.task.count({ where: { tenantId, status: 'REVIEW' } }),
-            this.prisma.task.count({ where: { tenantId, status: 'DONE' } }),
-            this.prisma.task.count({
-                where: {
-                    tenantId,
-                    status: { notIn: ['DONE', 'CANCELLED'] },
-                    dueDate: { lt: new Date() },
-                },
-            }),
-        ]);
+  /**
+   * Delete a task
+   */
+  public async deleteTask(
+    taskId: string,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<TaskDto> {
+    const db = prisma || this.prisma;
+    // Verify task exists and belongs to brand
+    await this.getTaskById(taskId, tenantId, db);
 
-        return {
-            total: totalTasks,
-            byStatus: {
-                todo: todoTasks,
-                inProgress: inProgressTasks,
-                review: reviewTasks,
-                done: doneTasks,
-            },
-            overdue: overdueTasks,
-            completionRate: totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0,
-        };
+    const include: any = {};
+    include.createdBy = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+    include.assignee = {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    };
+
+    // Soft delete by marking as CANCELLED
+    const task = await db.task.update({
+      where: { id: taskId } as any,
+      data: {
+        status: "CANCELLED" as any,
+        updatedAt: new Date(),
+      },
+      include,
+    } as any);
+
+    return task as unknown as TaskDto;
+  }
+
+  // ============================================
+  // Bulk Operations
+  // ============================================
+
+  /**
+   * Bulk update task status
+   */
+  public async bulkUpdateStatus(
+    data: BulkUpdateStatusInput,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<{ updated: number; taskIds: string[]; status: string }> {
+    const db = prisma || this.prisma;
+    const { taskIds, status } = data;
+
+    // Verify all tasks belong to the brand
+    const checkWhere: any = {};
+    checkWhere.id = { in: taskIds };
+    checkWhere.tenantId = tenantId;
+
+    const tasks = await db.task.findMany({
+      where: checkWhere,
+    } as any);
+
+    if (tasks.length !== taskIds.length) {
+      throw new Error("Some tasks not found or access denied");
     }
 
-    // ============================================
-    // Private Helper Methods
-    // ============================================
+    const updateWhere: any = {};
+    updateWhere.id = { in: taskIds };
+    updateWhere.tenantId = tenantId;
 
-    /**
-     * Send task assigned notification (stub - implement with your notification service)
-     */
-    private async sendTaskAssignedNotification(taskId: string, assigneeId: string) {
-        // TODO: Implement notification logic
-        console.log(`Notification: Task ${taskId} assigned to user ${assigneeId}`);
+    // Update all tasks
+    const result = await db.task.updateMany({
+      where: updateWhere,
+      data: {
+        status: status as any,
+        updatedAt: new Date(),
+      },
+    } as any);
+
+    return {
+      updated: result.count,
+      taskIds,
+      status,
+    };
+  }
+
+  /**
+   * Bulk assign tasks
+   */
+  public async bulkAssign(
+    data: BulkAssignInput,
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<{ assigned: number; taskIds: string[]; assigneeId: string }> {
+    const db = prisma || this.prisma;
+    const { taskIds, assigneeId } = data;
+
+    const userWhere: any = {};
+    userWhere.id = assigneeId;
+    userWhere.tenantId = tenantId;
+
+    // Verify assignee exists and belongs to brand
+    const assignee = await db.user.findFirst({
+      where: userWhere,
+    } as any);
+
+    if (!assignee) {
+      throw new Error("Assignee not found or access denied");
     }
 
-    /**
-     * Send task completed notification (stub - implement with your notification service)
-     */
-    private async sendTaskCompletedNotification(taskId: string, creatorId: string) {
-        // TODO: Implement notification logic
-        console.log(`Notification: Task ${taskId} completed, notifying creator ${creatorId}`);
+    // Verify all tasks belong to the brand
+    const taskWhere: any = {};
+    taskWhere.id = { in: taskIds };
+    taskWhere.tenantId = tenantId;
+
+    const tasks = await db.task.findMany({
+      where: taskWhere,
+    } as any);
+
+    if (tasks.length !== taskIds.length) {
+      throw new Error("Some tasks not found or access denied");
     }
 
-    /**
-     * Send bulk assignment notification (stub - implement with your notification service)
-     */
-    private async sendBulkAssignmentNotification(taskIds: string[], assigneeId: string) {
-        // TODO: Implement notification logic
-        console.log(`Notification: ${taskIds.length} tasks assigned to user ${assigneeId}`);
+    const bulkAssignWhere: any = {};
+    bulkAssignWhere.id = { in: taskIds };
+    bulkAssignWhere.tenantId = tenantId;
+
+    // Assign all tasks
+    const result = await db.task.updateMany({
+      where: bulkAssignWhere,
+      data: {
+        assigneeId,
+        updatedAt: new Date(),
+      },
+    } as any);
+
+    // Send notification
+    if (this.config.enableNotifications) {
+      await this.sendBulkAssignmentNotification(taskIds, assigneeId);
     }
+
+    return {
+      assigned: result.count,
+      taskIds,
+      assigneeId,
+    };
+  }
+
+  // ============================================
+  // Task Statistics
+  // ============================================
+
+  /**
+   * Get task statistics for a brand
+   */
+  public async getTaskStats(
+    tenantId: string,
+    prisma?: PrismaClient,
+  ): Promise<TaskStatsDto> {
+    const db = prisma || this.prisma;
+    const [
+      totalTasks,
+      todoTasks,
+      inProgressTasks,
+      reviewTasks,
+      doneTasks,
+      overdueTasks,
+    ] = await Promise.all([
+      db.task.count({ where: { tenantId } } as any),
+      db.task.count({ where: { tenantId, status: "TODO" } } as any),
+      db.task.count({ where: { tenantId, status: "IN_PROGRESS" } } as any),
+      db.task.count({ where: { tenantId, status: "REVIEW" } } as any),
+      db.task.count({ where: { tenantId, status: "DONE" } } as any),
+      db.task.count({
+        where: {
+          tenantId,
+          status: { notIn: ["DONE", "CANCELLED"] },
+          dueDate: { lt: new Date() },
+        },
+      } as any),
+    ]);
+
+    return {
+      total: totalTasks,
+      byStatus: {
+        todo: todoTasks,
+        inProgress: inProgressTasks,
+        review: reviewTasks,
+        done: doneTasks,
+      },
+      overdue: overdueTasks,
+      completionRate: totalTasks > 0 ? (doneTasks / totalTasks) * 100 : 0,
+    };
+  }
+
+  // ============================================
+  // Private Helper Methods
+  // ============================================
+
+  /**
+   * Send task assigned notification (stub - implement with your notification service)
+   */
+  private async sendTaskAssignedNotification(
+    taskId: string,
+    assigneeId: string,
+  ) {
+    // TODO: Implement notification logic
+    console.log(`Notification: Task ${taskId} assigned to user ${assigneeId}`);
+  }
+
+  /**
+   * Send task completed notification (stub - implement with your notification service)
+   */
+  private async sendTaskCompletedNotification(
+    taskId: string,
+    creatorId: string,
+  ) {
+    // TODO: Implement notification logic
+    console.log(
+      `Notification: Task ${taskId} completed, notifying creator ${creatorId}`,
+    );
+  }
+
+  /**
+   * Send bulk assignment notification (stub - implement with your notification service)
+   */
+  private async sendBulkAssignmentNotification(
+    taskIds: string[],
+    assigneeId: string,
+  ) {
+    // TODO: Implement notification logic
+    console.log(
+      `Notification: ${taskIds.length} tasks assigned to user ${assigneeId}`,
+    );
+  }
 }
