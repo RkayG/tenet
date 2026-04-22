@@ -1,64 +1,45 @@
-# Security Features
+# Security Engineering & Threat Mitigation
 
-Tenet enforces a **Security by Default** philosophy. This page details the specific security mechanisms built into the framework.
+Tenet is engineered with a **Defense-in-Depth** strategy. This document details the specific technical mitigations and security protocols integrated into the framework's core.
 
-## 1. Authentication
+---
 
-The framework supports multiple authentication strategies simultaneously. By default, it looks for a Bearer token in the `Authorization` header.
+## 1. Authentication Engine
+Tenet supports a multi-strategy authentication manager. It processes credentials based on a priority queue, supporting:
+- **JWT (Stateless)**: Cryptographically signed tokens for web and mobile clients.
+- **Persistent API Keys**: Secure, hashed keys for server-to-server communication.
+- **Extension Hooks**: Pluggable strategies for OAuth2 and OpenID Connect.
 
-- **JWT**: Standard stateless tokens.
-- **API Key**: Long-lived keys for machine-to-machine communication.
-- **OAuth**: Google/GitHub integration (extensible).
+## 2. Input Integrity & Sanitization
+Before data reaches the validation layer, it passes through a sanitization engine:
+- **XSS Mitigation**: Automatic stripping of executable HTML tags using `dompurify`.
+- **Injection Protection**: Heuristic-based detection for SQL and NoSQL injection patterns.
+- **Normalization**: Standardized string trimming and character encoding normalization.
 
-Strategies are tried in the order specified in `authStrategies`.
+## 3. Distributed Rate Limiting
+To prevent resource exhaustion and brute-force attacks, Tenet implements a Redis-backed rate limiter:
+- **Sliding Window Algorithm**: Eliminates the "window boundary burst" issue common in fixed-window limiters.
+- **Context-Aware Limits**: Intelligent throttling that switches between IP-based and User-based limiting depending on authentication state.
 
-## 2. Input Sanitization
+## 4. State-Change Protection (CSRF)
+For all state-mutating requests (POST, PUT, DELETE), Tenet enforces an automated CSRF protection mechanism using the **Double-Submit Cookie** pattern:
+- Cryptographically secure tokens are generated and compared against request headers.
+- Enabled by default for all authenticated presets to prevent cross-site request forgery.
 
-Every request input (body, query, params) undergoes rigorous sanitization **before** it reaches your handler.
+## 5. Transactional Idempotency
+To ensure data integrity during network failures or client retries, Tenet provides an idempotency manager:
+- Clients provide a unique `Idempotency-Key`.
+- The framework caches the final result of the successful operation.
+- Subsequent identical requests receive the cached result without re-triggering side-effects (e.g., duplicated billing or resource creation).
 
-- **HTML**: Strips dangerous tags (scripts, iframes) using `dompurify` to prevent XSS.
-- **SQL**: Detects and blocks obvious SQL injection patterns (though Prisma prevents this via parameterized queries, this is an extra defense layer).
-- **Trimming**: Whitespace is trimmed from strings.
+## 6. Cryptographic Utilities
+Tenet provides high-level abstractions for complex cryptographic operations:
+- **Field-Level Encryption**: Industry-standard AES-256-GCM encryption for sensitive data at rest.
+- **Secure Hashing**: Multi-round Bcrypt implementations with automated salt management for password storage.
 
-## 3. Rate Limiting
-
-Distributed rate limiting is implemented using **Redis** (with a memory fallback).
-
-- **Sliding Window**: Prevents burst attacks at window boundaries.
-- **Context Aware**: Limits by User ID (if authenticated) or IP address (if public).
-- **Headers**: Returns standard `X-RateLimit-*` headers.
-
-## 4. CSRF Protection
-
-For state-changing operations (POST, PUT, DELETE), we implement the **Double-Submit Cookie** pattern.
-
-1. Getting a secure `csrf-token` cookie.
-2. Requiring the `X-CSRF-Token` header to match the cookie hash.
-
-This is enabled by default in the `authenticated` and `highSecurity` presets.
-
-## 5. Idempotency
-
-Prevents duplicate processing of the same request (e.g., payment charges).
-
-- Clients send an `Idempotency-Key` header.
-- The framework caches the response of the first successful request.
-- Subsequent requests with the same key return the **cached response** immediately, without re-executing the handler logic.
-
-## 6. Data Encryption
-
-AES-256-GCM encryption helper is available for sensitive fields at rest.
-
-```typescript
-// Auto-decrypts input fields specified in config
-encryptedFields: ['socialSecurityNumber']
-```
-
-## 7. Security Headers
-
-The framework automatically sets strict security headers (Helmet):
-
-- `Content-Security-Policy`
-- `X-Frame-Options: DENY`
-- `Strict-Transport-Security` (HSTS)
-- `X-Content-Type-Options: nosniff`
+## 7. Transport & Perimeter Security
+The framework integrates **Helmet.js** pre-configured for enterprise security standards, enforcing:
+- **Strict Content-Security-Policy (CSP)**
+- **HSTS (HTTP Strict Transport Security)**
+- **MIME-Sniffing protection**
+- **Clickjacking mitigation** (`X-Frame-Options`)

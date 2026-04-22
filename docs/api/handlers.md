@@ -1,51 +1,44 @@
-# Helper Factories
+# Handler Factories
 
-The Tenet framework uses a **Factory Pattern** to create API endpoints. Instead of writing raw Express routes, you define handlers using `createHandler` and its variants. This ensures that validation, security, logging, and error handling are applied consistently.
-
-## ✨ The Beauty of Tenet Handlers
-
-Why use these helpers instead of raw Express routes?
-
-### 1. Declarative & Type-Safe
-Define your input schema once using Zod, and get full TypeScript type inference for your handler's `input` automatically. No more manual type casting or validation checks.
-
-### 2. Security by Default
-Every handler comes with built-in protection:
-- **Input Sanitization**: XSS and injection attacks are blocked before your code runs.
-- **Rate Limiting**: Intelligent limits prevent abuse.
-- **Security Headers**: Best-practice HTTP headers are set automatically.
-
-### 3. Focus on Business Logic
-Your handler function is clean. It receives validated inputs, an authenticated user, and a tenant-scoped database client. You just write the logic.
+The Tenet framework utilizes a **Factory Pattern** to standardize the lifecycle of API endpoints. Rather than interfacing with raw Express route handlers, we define endpoints using specialized factory functions. This architecture ensures that security, validation, auditing, and observability are applied consistently across the entire application.
 
 ---
 
-## `createPublicHandler`
+## 🏗️ Core Benefits
 
-Use this for endpoints that **do not require authentication**, such as health checks, login routes, or public webhooks.
+### Declarative Security
+Define the security requirements for an endpoint (e.g., role-based access, rate limits, ownership constraints) within a configuration object. The framework handles the middleware orchestration automatically.
 
-### Usage
+### Automated Type Safety
+Input schemas defined with **Zod** are automatically used to infer the static types for the handler's `input`. This eliminates manual type casting and ensures runtime validation strictly matches the TypeScript contracts.
+
+### Context-Rich Execution
+Handlers receive a simplified `HandlerContext` that contains pre-resolved identities, verified ownership data, and a database client (Prisma) that is automatically scoped to the user's active tenant.
+
+---
+
+## 🔓 `createPublicHandler`
+
+Used for endpoints that do not require authentication, such as public webhooks, health checks, or discovery endpoints. While open, these endpoints still benefit from the framework's rate limiting and input sanitization engines.
+
+### Implementation Example
 
 ```typescript
 import { createPublicHandler, z } from '@tenet/api';
 
 export const healthCheck = createPublicHandler({
-  // Optional: Validate query params
   schema: z.object({
     echo: z.string().optional(),
   }),
-
-  // Optional: Custom rate limit for public routes
   rateLimit: {
     windowMs: 60 * 1000,
-    maxRequests: 20,
+    maxRequests: 50,
   },
-
   handler: async ({ input }) => {
     return {
-      status: 'ok',
+      status: 'service_healthy',
       echo: input.echo,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     };
   },
 });
@@ -53,51 +46,40 @@ export const healthCheck = createPublicHandler({
 
 ---
 
-## `createAuthenticatedHandler`
+## 🔒 `createAuthenticatedHandler`
 
-The standard way to build API endpoints. This helper ensures that a valid user is present before your handler runs. If the user is missing or the token is invalid, it returns `401 Unauthorized` automatically.
+The standard factory for protected endpoints. It enforces a "valid session" constraint; if the request arrives without a verifiable identity, the framework automatically returns `401 Unauthorized`.
 
-### Usage
+### Implementation Example
 
 ```typescript
 import { createAuthenticatedHandler, z } from '@tenet/api';
 
 export const updateProfile = createAuthenticatedHandler({
-  // Input validation
   schema: z.object({
     displayName: z.string().min(2).max(50),
     bio: z.string().max(500).optional(),
   }),
-
   handler: async ({ input, user, prisma }) => {
-    // 'user' is guaranteed to be defined here
-    console.log(`User ${user.id} is updating profile`);
-
-    const updatedUser = await prisma.user.update({
+    // Identity is guaranteed by the factory
+    return await prisma.user.update({
       where: { id: user.id },
       data: {
         name: input.displayName,
         bio: input.bio,
       },
     });
-
-    return updatedUser;
   },
 });
 ```
 
-### Key Features
-- **Guaranteed User Context**: The `user` object is fully typed and non-null.
-- **Audit Logging**: Automatically logs the user ID and action.
-- **CSRF Protection**: Enabled by default for mutation methods (POST/PUT/DELETE).
-
 ---
 
-## `createTenantHandler`
+## 🏢 `createTenantHandler`
 
 Use this for **SaaS applications**. It adds a layer of multi-tenant isolation on top of authentication. It ensures the user belongs to the requested tenant and provides a database client that **automatically filters data** for that tenant.
 
-### Usage
+### Implementation Example
 
 ```typescript
 import { createTenantHandler, z } from '@tenet/api';
@@ -111,49 +93,35 @@ export const getProjectDetails = createTenantHandler({
   allowedRoles: ['ADMIN', 'MEMBER'],
 
   handler: async ({ input, prisma, tenant }) => {
-    // 'prisma' is automatically scoped to 'tenant.id'
-    // You cannot accidentally query another tenant's data
-    const project = await prisma.project.findUnique({
+    // Queries are automatically scoped: WHERE tenant_id = tenant.id
+    return await prisma.project.findUnique({
       where: { id: input.projectId },
     });
-
-    return project;
   },
 });
 ```
 
-### Key Features
-- **Auto-Scoping**: The `prisma` client injects `WHERE tenantId = ?` into queries.
-- **Role Verification**: Checks the user's role specifically within the current tenant context.
-- **Tenant Context**: Provides details about the active tenant.
-
 ---
 
-## `createSuperAdminHandler`
+## 🛡️ `createSuperAdminHandler`
 
-For internal back-office tools. This requires the user to have a global `SUPER_ADMIN` system role.
+Reserved for critical system-level operations. Access is restricted to users with the global `SUPER_ADMIN` role. Operations through this handler are logged with elevated severity.
 
-### Usage
+### Implementation Example
 
 ```typescript
 import { createSuperAdminHandler, z } from '@tenet/api';
 
-export const deleteTenant = createSuperAdminHandler({
+export const deactivateTenant = createSuperAdminHandler({
   schema: z.object({
-    tenantId: z.string(),
+    tenant_id: z.string().cuid(),
   }),
-
   handler: async ({ input, prisma }) => {
-    // High-privilege operation
-    await prisma.tenant.delete({
-      where: { id: input.tenantId },
+    await prisma.tenant.update({
+      where: { id: input.tenant_id },
+      data: { isActive: false },
     });
-
     return { success: true };
   },
 });
 ```
-
-### Key Features
-- **Strict Authorization**: Only global super admins can access.
-- **Critical Audit**: Logs are marked with `CRITICAL` severity and retained for 7 years.

@@ -1,75 +1,57 @@
-# Audit System
+# Audit Engine & Observability
 
-The Audit System provides a comprehensive trail of all actions performed within the API. It is designed to satisfy compliance requirements for **SOC2**, **GDPR**, and **HIPAA**.
+Tenet features a high-fidelity audit system designed to meet strict regulatory compliance standards, including **SOC2**, **GDPR**, and **HIPAA**. Logging is integrated directly into the request lifecycle, ensuring that every operation is recorded without requiring developer intervention.
 
-## Automatic Logging
+---
 
-By default, the framework logs an event for every API request handled.
+## 🛰️ Automatic Lifecycle Logging
 
-### Event Structure
+The framework automatically monitors and records the execution of every handler. A standard audit event captures the full context of a request:
 
-```json
-{
-  "id": "evt_123",
-  "eventType": "UPDATE",
-  "category": "DATA",
-  "action": "project.update",
-  "status": "SUCCESS",
-  "severity": "INFO",
-  "actor": {
-    "userId": "user_123",
-    "ip": "1.2.3.4"
-  },
-  "resource": {
-    "type": "Project",
-    "id": "proj_abc",
-    "tenantId": "tenant_xyz"
-  },
-  "changes": {
-    "title": { "old": "Proposal A", "new": "Proposal B" }
-  },
-  "metadata": {
-    "userAgent": "Mozilla/5.0...",
-    "requestId": "req_789"
-  }
-}
-```
+| Field | Description |
+|-------|-------------|
+| `eventType` | Categorization based on the operation (e.g., CREATE, AUTH, SECURITY). |
+| `action` | The specific semantic action (e.g., `user.login`, `project.delete`). |
+| `actor` | Details of the executing user, including ID and IP address. |
+| `resource` | Type and identifier of the object being manipulated. |
+| `tenant_id` | Scoping information for multi-tenant isolation. |
+| `severity` | Severity level (INFO, NOTICE, WARNING, CRITICAL). |
 
-## Configuration
+---
 
-You can customize logging per handle:
+## 🛡️ Configuration & Customization
+
+Granular audit control is available within the `HandlerConfig` for specialized requirements:
 
 ```typescript
 auditConfig: {
-  // Capture the full JSON response? (Use carefully!)
-  captureResponseBody: true,
-
-  // Calculate diff of data before/after update?
+  // Enables fine-grained diff tracking (Old Value vs New Value)
   trackDataChanges: true,
 
-  // Mask PII automatically
-  sensitiveFields: ['password', 'creditCard'],
+  // Automatically mask PII or sensitive keys in the audit metadata
+  sensitiveFields: ['password', 'token', 'credit_card'],
 
-  // Custom tagging
-  tags: ['billing-critical'],
+  // Custom categorization for reporting
+  category: 'FINANCIAL',
+  tags: ['billing-critical', 'pci-dss'],
 }
 ```
 
-## Data Retention
+---
 
-The `AuditRetentionManager` handles automated cleanup of old logs based on their legal requirements.
+## 🏛️ Data Retention & Compliance
 
-| Category | Typical Retention | Description |
-|----------|-------------------|-------------|
-| `auth` | 1 Year | Logins, password changes. |
-| `admin` | 2 Years | Administrative actions. |
-| `security` | 7 Years | Security incidents, policy changes. |
-| `general` | 90 Days | Standard CRUD operations. |
+Audit logs are managed by a retention policy engine that ensures logs are preserved according to legal requirements and pruned once they are no longer needed.
 
-## Compliance Reporting
+- **`auth`**: 1 Year retention (Login history, access attempts).
+- **`security`**: 7 Year retention (Escalations, configuration changes, violations).
+- **`general`**: 90 Day retention (Standard operational CRUD).
 
-The framework includes utilities to generate CSV/JSON reports for auditors:
+---
 
-- **User Activity Report**: Everything a specific user did.
-- **Resource History**: Timeline of changes to a specific object.
-- **System Access**: List of all logins/failed attempts.
+## 📊 Reporting Utilities
+
+The framework provides built-in reporters for common auditing tasks:
+- **User Activity Timeline**: Focused audit trail for specific user identifiers.
+- **Resource Lineage**: Chronological map of all changes to a specific dataset.
+- **Anomaly Detection**: Access report highlighting failed authentication and authorization attempts.

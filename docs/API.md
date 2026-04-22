@@ -12,7 +12,8 @@ The framework provides a set of factory functions to create secure, type-safe AP
 |----------|-------------|
 | [`createPublicHandler`](api/handlers.md#createpublichandler) | Create a public API handler (no auth) with validation. |
 | [`createAuthenticatedHandler`](api/handlers.md#createauthenticatedhandler) | Create a handler that requires authentication. |
-| [`createTenantHandler`](api/handlers.md#createtenanthandler) | Create a handler with automatic tenant scoping and authorization. |
+| [`createTenantHandler`](api/handlers.md#createtenanthandler) | Create a handler with automatic tenant scoping. |
+| [`createSuperAdminHandler`](api/handlers.md#createsuperadminhandler) | Create a handler for critical system operations. |
 
 ### Configuration
 
@@ -34,7 +35,7 @@ type HandlerContext<TInput> = {
   tenant: TenantContext;      // Current tenant (if multi-tenant)
   prisma: PrismaClient;       // Tenant-scoped database client
   request: Request;           // Express request
-  modifictions: any;          // Internal use
+  params: Record<string, string>; // URL parameters
 };
 ```
 
@@ -48,10 +49,12 @@ type HandlerContext<TInput> = {
 
 ### Errors
 
-- `AppError` - Base error class.
-- `ValidationError` - Input validation failure.
-- `AuthenticationError` - Auth failure.
-- `AuthorizationError` - Permission denial.
+- `successResponse` - Standardized success format.
+- `errorResponse` - Base error handler.
+- `validationErrorResponse` - Code `VALIDATION_ERROR` (400).
+- `unauthorizedResponse` - Code `AUTHENTICATION_ERROR` (401).
+- `forbiddenResponse` - Code `AUTHORIZATION_ERROR` (403).
+- `notFoundResponse` - Code `RESOURCE_NOT_FOUND` (404).
 
 ---
 

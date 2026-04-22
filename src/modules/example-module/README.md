@@ -24,7 +24,7 @@ The module uses specialized handler wrappers from the core:
 - `createPublicHandler`: For endpoints accessible without authentication (with built-in rate limiting).
 
 ### 2. Multi-Tenancy & Isolation
-- **Automatic Scoping**: Routes pass the scoped `prisma` client from the `HandlerContext` to the service. This client uses the framework's Prisma extension to automatically filter all queries by `tenantId`.
+- **Automatic Scoping**: Routes pass the scoped `prisma` client from the `HandlerContext` to the service. This client uses the framework's Prisma extension to automatically filter all queries by `tenant_id`.
 - **Tenant Context**: Uses `tenant.id` from the context for resource creation and validation.
 
 ### 3. Resource Ownership
@@ -34,7 +34,7 @@ The module uses specialized handler wrappers from the core:
   requireOwnership: {
       model: 'task',
       resourceIdParam: 'id',
-      tenantIdField: 'tenantId',
+      tenant_idField: 'tenant_id',
   }
   ```
 

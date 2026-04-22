@@ -5,155 +5,116 @@
 [![Prisma](https://img.shields.io/badge/Prisma-5.6-green.svg)](https://prisma.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**The Enterprise-Grade API Framework for Node.js**
+**Secure, Enterprise-Grade API Framework for Node.js**
 
-Tenet is a **Node.js framework that makes building secure, multi-tenant APIs easy**. 
-
-It automatically handles **authentication, input validation, rate-limiting, and auditing** for every endpoint, so you can focus 100% on writing your application's logic instead of configuring middleware.
-
-## 🧠 Core Philosophy
-
-### 1. Security by Default
-In Tenet, security is **opt-out**. By default, every handler you create has:
-- Strict input sanitization (XSS/SQLi protection)
-- Authentication checks
-- CSRF protection
-- Rate limiting
-- Secure HTTP headers
-
-### 2. Configuration over Boilerplate
-Developers spend too much time writing the same 20 lines of middleware setup for every endpoint. Tenet uses a **declarative configuration object** (`HandlerConfig`) to define behavior. You describe *what* you want (e.g., "Authenticated, Rate Limited, Audited"), and the framework constructs the pipeline.
-
-### 3. Type Safety as a First-Class Citizen
-The framework leverages TypeScript to its fullest:
-- **Input Types**: Derived automatically from Zod schemas.
-- **Database Types**: Generated from your Prisma schema.
-- **Context Types**: Guaranteed user/tenant presence based on your configuration.
+Tenet is a high-level framework built on top of Express and Prisma, designed to automate the repetitive security and compliance aspects of modern API development. It enforces a "Security by Default" philosophy, allowing developers to focus entirely on business logic while the framework handles the heavy lifting of multi-tenancy, auditing, and threat mitigation.
 
 ---
 
-## 🏗️ Technical Stack Choices
+## 🎨 Philosophy: Security by Default
 
-We chose a "Boring but Proven" technology stack to ensure long-term maintainability and stability.
+Tenet was built to eliminate "middleware fatigue." Instead of manually configuring security layers for every route, you define your requirements declaratively.
 
-- **Express.js (The Core)**: The industry standard. We wrap Express to provide modern async features and typed inputs while maintaining access to its massive middleware ecosystem.
-- **Prisma (The Data Layer)**: Unmatched developer experience. We utilize Client Extensions to inject Row-Level Security (RLS) directly into the query builder.
-- **Zod (Validation)**: The bridge between untyped HTTP JSON and strict TypeScript.
-- **Redis (Infrastructure)**: Used for distributed rate limiting and caching.
-
----
-
-## 🏢 Why use Tenet?
-
-### For Startups
-**Speed to MVP.** You get a production-ready foundation with Auth, Multi-Tenancy, and Logging out of the box. You focus 100% on your product's unique value.
-
-### For Enterprises
-**Compliance & Standardization.** Tenet enforces patterns that satisfy security audits (SOC2/GDPR). The uniform structure means any developer can jump into any backend system built with Tenet and understand it immediately.
+- **🛡️ Shielded Endpoints**: Every handler automatically receives CSRF protection, IP/User rate-limiting, and XSS/SQLi sanitization.
+- **🏗️ Structured Business Logic**: No more hunting through parameters. Handlers receive a pre-validated, typed context including the user, tenant, and a scoped database client.
+- **📜 Compliance native**: Enterprise-grade audit trails are generated as a side-effect of execution, tracking changes and access for SOC2/GDPR compliance.
 
 ---
 
-## 📚 Documentation
-
-Detailed documentation is available in the `docs/` directory:
-
-- **[API Reference](docs/API.md)**: Main entry point for all exports.
-- **[Handler Guide](docs/api/handlers.md)**: How to use `createPublicHandler`, `createAuthenticatedHandler`, etc.
-- **[Multi-Tenancy](docs/architecture/multi-tenancy.md)**: Isolation strategies and tenant resolution.
-- **[Security Features](docs/security/features.md)**: CSRF, Rate Limiting, Encryption.
-- **[Audit System](docs/api/audit.md)**: Compliance logging and identifying users.
-
----
-
-## ⚡ Quick Start
+## ⚡ Getting Started
 
 ### 1. Installation
 
+Since Tenet is currently in active development and not yet on the public NPM registry, it should be integrated via cloning or linking.
+
 ```bash
-npm install @tenet/api zod @prisma/client
+# Clone and setup
+git clone https://github.com/RkayG/tenet.git && cd tenet
+pnpm install
+
+# Configure environment
+cp .env.example .env
+
+# Generate Prisma client
+pnpm db:generate
 ```
 
-### 2. Create a Public Endpoint
+### 2. Integration (Local usage)
 
-```typescript
-import { createPublicHandler, z } from '@tenet/api';
+To use Tenet in your project, link it globally:
+```bash
+# In the tenet directory
+pnpm link --global
 
-// GET /api/health
-export const healthCheck = createPublicHandler({
-  schema: z.object({
-    echo: z.string().optional(),
-  }),
-  handler: async ({ input }) => {
-    return { status: 'ok', echo: input.echo };
-  },
-});
+# In your project directory
+pnpm link --global @tenet/api
 ```
 
-### 3. Create an Authenticated Endpoint
+---
 
-```typescript
-import { createAuthenticatedHandler, z } from '@tenet/api';
+## 🚀 One-Minute Intro
 
-// POST /api/profile
-export const updateProfile = createAuthenticatedHandler({
-  schema: z.object({
-    name: z.string().min(2),
-  }),
-  handler: async ({ input, user, prisma }) => {
-    // User is guaranteed to be present and authenticated
-    return await prisma.user.update({
-      where: { id: user.id },
-      data: { name: input.name },
-    });
-  },
-});
-```
-
-### 4. Create a Multi-Tenant Endpoint
+Here is how you define a secure, multi-tenant endpoint in Tenet. Notice the lack of manual validation or security middleware.
 
 ```typescript
 import { createTenantHandler, z } from '@tenet/api';
 
 // GET /api/projects
 export const listProjects = createTenantHandler({
-  handler: async ({ prisma }) => {
-    // Prisma client is automatically scoped to the current tenant!
-    // WHERE tenantId = ? is injected automatically.
-    return await prisma.project.findMany();
+  schema: z.object({
+    status: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+  }),
+  handler: async ({ input, prisma, tenant }) => {
+    // 1. input is fully typed (Zod)
+    // 2. prisma is automatically scoped to current tenant
+    // 3. Operation is automatically audited
+    return await prisma.project.findMany({
+      where: { status: input.status },
+    });
   },
 });
 ```
 
 ---
 
-## 🔒 Security Features
+## 📚 Documentation
 
-- **Authentication**: JWT, API Keys, and OAuth strategies.
-- **Sanitization**: Auto-strips dangerous characters from HTML/SQL inputs.
-- **Rate Limiting**: Distributed Redis-based limits per user/IP.
-- **Encryption**: AES-256 helper for sensitive database fields.
-- **Compliance**: SOC2-ready Audit Logs.
+Explore our detailed documentation for architecture deep-dives and full API references:
+
+- **[API Reference](docs/API.md)** – Core exports, factories, and utility types.
+- **[Handler Guide](docs/api/handlers.md)** – Deep dive into `createPublicHandler`, `createAuthenticatedHandler`, etc.
+- **[Multi-Tenancy](docs/architecture/multi-tenancy.md)** – Isolation strategies and tenant resolution.
+- **[Security & Audit](docs/security/features.md)** – Details on the auditing and threat mitigation engines.
+
+---
 
 ## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    A[Incoming Request] --> B["Security Headers (Helmet)"]
-    B --> C["Rate Limiting (Redis)"]
-    C --> D["Input Sanitization (XSS/SQLi)"]
-    D --> E["Authentication (JWT/API Key)"]
-    E --> F[Tenant Resolution]
-    F --> G[Tenant Authorization]
-    G --> H["Input Validation (Zod)"]
-    H --> I["Audit Log (Start)"]
-    I --> J{Business Logic}
-    J --> K[Response]
-    K --> L["Audit Log (Complete)"]
+    A[Incoming Request] --> B["Security Headers & Rate Limiting"]
+    B --> C["Sanitization & Authentication"]
+    C --> D[Tenant Resolution & Scoping]
+    D --> E["Input Validation (Zod)"]
+    E --> F["Audit Tracking (Start)"]
+    F --> G{Business Logic}
+    G --> H[Sanitized Response]
+    H --> I["Audit Tracking (Complete)"]
 ```
+
+## 🚀 Examples
+
+The repository includes a suite of examples demonstrating enterprise patterns:
+- **`pnpm dev:basic-api`**: Full User Management CRUD with auth and audit.
+- **`pnpm dev:multi-tenant`**: Complex multi-tenant project management.
+
+---
 
 ## 🤝 Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for our development workflow.
+
+---
 
 ## 📄 License
 

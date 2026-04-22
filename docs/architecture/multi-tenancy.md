@@ -27,9 +27,9 @@ We use **Prisma Client Extensions** to enforce logical separation of data within
 When `autoTenantScope: true` (default in `tenant` preset), the framework:
 
 1.  Intercepts the `prisma` client instance.
-2.  Should the model have a `tenantId` field?
-3.  **YES**: Automatically appends `WHERE tenantId = ?` to every query (find, update, delete).
-4.  **YES**: Automatically injects `data: { tenantId: ? }` on create.
+2.  Should the model have a `tenant_id` field?
+3.  **YES**: Automatically appends `WHERE tenant_id = ?` to every query (find, update, delete).
+4.  **YES**: Automatically injects `data: { tenant_id: ? }` on create.
 
 ### Example
 
@@ -38,7 +38,7 @@ When `autoTenantScope: true` (default in `tenant` preset), the framework:
 await prisma.project.findMany();
 
 // Framework executes:
-SELECT * FROM "Project" WHERE "tenantId" = 'current-tenant-id';
+SELECT * FROM "Project" WHERE "tenant_id" = 'current-tenant-id';
 ```
 
 ## Tenant Authorization
@@ -51,7 +51,7 @@ Beyond just knowing the tenant, we verify the **User's Membership**.
 
 ## Database Strategies supported
 
-1.  **Shared Database (Schema-based)**: (Default) All tenants in one DB, separated by `tenantId` column.
+1.  **Shared Database (Schema-based)**: (Default) All tenants in one DB, separated by `tenant_id` column.
 2.  **Separate Schemas**: Postgres schemas (`tenant_a`, `tenant_b`).
 3.  **Separate Databases**: Physically distinct DBs (Enterprise tier).
 

@@ -143,7 +143,7 @@ router.get('/tasks/:id', createTenantHandler({
   requireOwnership: {
     model: 'task',            // Use lowercase model names
     resourceIdParam: 'id',
-    tenantIdField: 'tenantId', // Use tenantIdField for multi-tenant isolation
+    tenant_idField: 'tenant_id', // Use tenant_idField for multi-tenant isolation
   },
   handler: async ({ resource }) => {
     return resource; // Already loaded and verified
@@ -191,9 +191,9 @@ export class YourModuleService {
     return YourModuleService.instance;
   }
 
-  public async createItem(data: CreateItemInput, userId: string, tenantId: string) {
+  public async createItem(data: CreateItemInput, userId: string, tenant_id: string) {
     return await this.prisma.item.create({
-      data: { ...data, userId, tenantId },
+      data: { ...data, userId, tenant_id },
     });
   }
 }
@@ -253,7 +253,7 @@ router.get('/items/:id', createTenantHandler({
   requireOwnership: {
     model: 'item',
     resourceIdParam: 'id',
-    tenantIdField: 'tenantId',
+    tenant_idField: 'tenant_id',
   },
   handler: async ({ resource }) => resource,
 }));
