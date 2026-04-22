@@ -1,4 +1,4 @@
-# CLAUDE.md - AI Assistant Guidelines for Secure API Request Handler
+# CLAUDE.md - AI Assistant Guidelines for Tenet
 
 ## Project Overview
 
@@ -109,8 +109,8 @@ const labels: Record<string, string> = {
 ## Architecture Patterns
 
 ### 1. Handler Pattern
-- All API handlers use `createHandler` or `createPublicHandler`
-- Handlers receive `HandlerContext<TInput>` with validated input
+- Use specialized factories: `createPublicHandler`, `createAuthenticatedHandler`, `createSuperAdminHandler`, and `createTenantHandler`
+- Handlers receive `HandlerContext<TInput>` or `EnhancedHandlerContext<TInput>`
 - Always return `Promise<TOutput>`
 
 ### 2. Service Layer
@@ -141,6 +141,7 @@ src/
 ├── multitenancy/   # Multi-tenant strategies
 ├── database/       # Database connection management
 ├── config/         # Configuration management
+├── modules/        # Domain-specific modules (Feature-based)
 ├── utils/          # Utility functions
 └── versioning/     # API versioning
 ```
@@ -149,9 +150,10 @@ src/
 
 ### Adding a New Handler
 1. Define Zod schema for input validation
-2. Create handler using `createHandler`
-3. Implement business logic in handler function
-4. Register route in appropriate router
+2. Create handler using the appropriate factory (`createPublicHandler`, `createAuthenticatedHandler`, etc.)
+3. Configure security features (rateLimit, cache, requireOwnership, auditConfig)
+4. Implement business logic in the handler function
+5. Register route in the appropriate router (typically in `src/modules/*/routes.ts`)
 
 ### Adding a New Service
 1. Create singleton class with `getInstance()`
