@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/server.ts",
+    "dev:basic-api": "tsx examples/basic-api/server.ts",
+    "dev:multi-tenant": "tsx examples/multi-tenant-app/index.ts",
     "start": "node dist/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -81,6 +83,7 @@
     "prisma": "^5.6.0",
     "redis": "^4.6.8",
     "sanitize-html": "^2.11.0",
+    "tslib": "^2.8.1",
     "uuid": "^9.0.1",
     "winston": "^3.10.0",
     "zod": "^3.22.4"
