@@ -129,7 +129,7 @@ export class JWTStrategy implements AuthStrategy {
     return {
       id: payload.sub || payload.id,
       email: payload.email,
-      tenant_id: payload.tenant_id,
+      tenantId: payload.tenantId,
       role: payload.role,
       permissions: payload.permissions,
       metadata: payload.metadata,
@@ -144,7 +144,7 @@ export class JWTStrategy implements AuthStrategy {
     const payload = {
       sub: user.id,
       email: user.email,
-      tenant_id: user.tenant_id,
+      tenantId: user.tenantId,
       role: user.role,
       permissions: user.permissions,
       metadata: user.metadata,

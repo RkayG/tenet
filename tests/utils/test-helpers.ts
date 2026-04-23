@@ -49,7 +49,7 @@ export const mockUser = (overrides: Partial<User> = {}): User => ({
     id: 'user-123',
     email: 'test@example.com',
     role: 'user',
-    tenant_id: 'tenant-123',
+    tenantId: 'tenant-123',
     permissions: [],
     is_active: true,
     ...overrides,
@@ -73,7 +73,7 @@ export const mockJWTToken = (payload: any = {}) => {
         sub: 'user-123',
         email: 'test@example.com',
         role: 'user',
-        tenant_id: 'tenant-123',
+        tenantId: 'tenant-123',
         ...payload,
     };
 

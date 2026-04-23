@@ -40,7 +40,7 @@ describe('JWT Strategy', () => {
                 expect.objectContaining({
                     sub: user.id,
                     email: user.email,
-                    tenant_id: user.tenant_id,
+                    tenantId: user.tenantId,
                     role: user.role,
                 }),
                 mockConfig.secret,

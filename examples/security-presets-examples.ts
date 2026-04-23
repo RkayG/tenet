@@ -95,7 +95,7 @@ export const createOrder = createTenantHandler({
             const order = await tx.order.create({
                 data: {
                     userId: user!.id,
-                    tenantId: tenant!.id, // Auto-added by middleware
+                    tenant_id: tenant!.id, // Auto-added by middleware
                     items: {
                         create: input.items,
                     },

@@ -267,7 +267,7 @@ describe('Tenet Handler System', () => {
         });
 
         it('should inject tenant context when resolved', async () => {
-            req.user = mockUser({ tenant_id: 'tenant-123' });
+            req.user = mockUser({ tenantId: 'tenant-123' });
             // Mock tenant resolution usually happens via middleware/headers, 
             // but here we mock the `TenantManager` behavior via the helpers/mocks setup.
             // For unit testing the specific handler logic with mocks:
