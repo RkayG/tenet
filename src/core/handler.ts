@@ -179,7 +179,7 @@ function generateCacheKey(
   path: string,
   input: any,
   userId?: string,
-  tenant_id?: string
+  tenantId?: string
 ): string {
   // Hash the input to prevent cache key length issues and improve security
   const inputHash = crypto
@@ -191,7 +191,7 @@ function generateCacheKey(
   const parts = [
     'cache',
     path,
-    tenant_id || 'global',
+    tenantId || 'global',
     userId || 'anon',
     inputHash,
   ];
@@ -265,12 +265,12 @@ function initializeEncryptionService(): EncryptionService {
  * Get or create tenant-aware Prisma client with proper connection management
  */
 async function getPrismaClient(
-  tenant_id: string | undefined,
+  tenantId: string | undefined,
   tenantManager: any,
   globalPrisma: PrismaClient
 ): Promise<PrismaClient> {
-  if (tenant_id) {
-    return await tenantManager.getPrismaClient(tenant_id);
+  if (tenantId) {
+    return await tenantManager.getPrismaClient(tenantId);
   }
 
   if (!globalPrisma) {
@@ -406,16 +406,14 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
       // 3. Multi-Tenant Context
       // ============================================
 
-      if (tenantManager.isEnabled()) {
-        const tenant_id = await tenantManager.resolveTenantId(req);
-        if (tenant_id) {
-          tenant = await tenantManager.getTenantContext(tenant_id) || undefined;
-        }
+      const resolvedTenantId = await tenantManager.resolveTenantId(req);
+      if (resolvedTenantId) {
+        tenant = await tenantManager.getTenantContext(resolvedTenantId) || undefined;
+      }
 
-        // Only fail if tenant is required
-        if (!tenant && configManager.getConfig().multitenancy.enabled) {
-          return errorResponse(res, 'BAD_REQUEST', 'Invalid tenant', 400);
-        }
+      // If tenant resolution fails for a tenant-specific preset, fail early
+      if (!tenant && effectiveConfig.preset === 'tenant') {
+        return errorResponse(res, 'BAD_REQUEST', 'Valid tenant context required', 400);
       }
 
       // ============================================
@@ -696,7 +694,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           const tenantMembership = await prisma.tenantMember.findFirst({
             where: {
               userId: user!.id,
-              tenant_id: tenant!.id,
+              tenantId: tenant!.id,
               role: { in: effectiveConfig.allowedRoles as any[] },
               isActive: true,
             },
@@ -706,7 +704,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
             monitoring.recordMetric('auth.tenant_role_forbidden', 1, {
               required_roles: effectiveConfig.allowedRoles.join(','),
               user_role: user?.role || 'unknown',
-              tenant_id: tenant.id,
+              tenantId: tenant.id,
             });
 
             // Audit: Log tenant authorization failure
@@ -729,7 +727,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           // Success - user has required role in this tenant
           monitoring.recordMetric('auth.tenant_role_success', 1, {
             role: tenantMembership.role,
-            tenant_id: tenant.id,
+            tenantId: tenant.id,
           });
         } catch (error) {
           console.error('Tenant role validation error:', error);
@@ -751,7 +749,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
         }));
 
         monitoring.recordMetric('tenant.scoping.applied', 1, {
-          tenant_id: tenant.id,
+          tenantId: tenant.id,
         });
       }
 
@@ -762,7 +760,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
       let resource: any = undefined;
 
       if (effectiveConfig.requireOwnership && user) {
-        const { model, resourceIdParam, resourceIdField, ownerIdField, tenant_idField, selectFields } = effectiveConfig.requireOwnership;
+        const { model, resourceIdParam, resourceIdField, ownerIdField, tenantIdField, selectFields } = effectiveConfig.requireOwnership;
         const resourceId = params[resourceIdParam];
 
         if (!resourceId) {
@@ -787,8 +785,8 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           }
 
           // Add tenant filter
-          if (tenant_idField && tenant?.id) {
-            where[tenant_idField] = tenant.id;
+          if (tenantIdField && tenant?.id) {
+            where[tenantIdField] = tenant.id;
           }
 
           // Query using validated model name
@@ -845,7 +843,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
             method: req.method,
             path: req.path,
             user_id: user?.id || '',
-            tenant_id: tenant?.id || '',
+            tenantId: tenant?.id || '',
           },
         },
         // Transaction helper
@@ -1193,7 +1191,7 @@ export const createSuperAdminHandler = <TInput, TOutput>(
  * 
  * Features enabled by default:
  * - Tenant-role validation (prevents cross-tenant role escalation)
- * - Auto-tenant scoping (automatically filters queries by tenant_id)
+ * - Auto-tenant scoping (automatically filters queries by tenantId)
  * - Multi-tenancy feature flag
  * - CSRF protection
  * 

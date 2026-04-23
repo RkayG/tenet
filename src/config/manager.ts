@@ -69,8 +69,6 @@ export class ConfigManager {
         environment: (process.env.NODE_ENV as any) || 'development',
       },
       multitenancy: {
-        enabled: process.env.MULTITENANCY_ENABLED === 'true',
-        strategy: (process.env.MULTITENANCY_STRATEGY as any) || 'shared_schema',
         tenantHeader: process.env.TENANT_HEADER || 'X-Tenant-ID',
       },
       features: {},

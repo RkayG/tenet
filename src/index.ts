@@ -9,10 +9,9 @@
  */
 
 // Core framework
-export { createHandler } from './core/handler';
 export { createAuthenticatedHandler } from './core/handler';
 export { createPublicHandler } from './core/handler';
-export { createAdminHandler } from './core/handler';
+export { createSuperAdminHandler } from './core/handler';
 export { createTenantHandler } from './core/handler';
 
 // Types and interfaces
@@ -62,8 +61,6 @@ export { HealthChecker } from './monitoring/health';
 // Multi-tenancy
 export { TenantManager } from './multitenancy/manager';
 export { SharedSchemaStrategy } from './multitenancy/strategies/shared-schema';
-export { SeparateSchemaStrategy } from './multitenancy/strategies/separate-schema';
-export { SeparateDatabaseStrategy } from './multitenancy/strategies/separate-database';
 
 // API Versioning
 export { VersionManager } from './versioning/manager';

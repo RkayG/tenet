@@ -1,20 +1,49 @@
 /**
  * Tenant Manager
  * 
- * Manages multi-tenancy support using the Shared Schema isolation strategy.
- * All tenants share the same database schema with automatic tenantId filtering
- * applied via Prisma Client Extensions.
+ * The TenantManager is the core orchestrator of the Tenet framework's multi-tenancy system.
+ * It is responsible for resolving, validating, and managing the lifecycle of tenant contexts
+ * and their associated database connections.
+ * 
+ * Key Responsibilities:
+ * 1. Tenant Resolution: Identifying the tenant from incoming HTTP requests.
+ * 2. Context Caching: Storing tenant metadata in-memory to optimize performance.
+ * 3. Connection Management: Providing and caching tenant-scoped Prisma clients.
+ * 4. Validation: Ensuring requests only proceed for active, valid tenants.
+ * 
+ * This class follows the Singleton pattern and must be initialized with a MultitenancyConfig.
  */
 
 import { Request } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { TenantContext, MultitenancyConfig } from '../core/types';
 
+/**
+ * Interface defining the requirements for a tenant resolution and isolation strategy.
+ */
 export interface TenantStrategy {
+  /** Uniquely identifies the strategy (e.g., 'shared_schema') */
   name: string;
+
+  /**
+   * Returns a Prisma client configured for the specific tenant.
+   * In a shared schema, this returns the global client (isolation is handled by extensions).
+   */
   getPrismaClient(tenantId: string): Promise<PrismaClient>;
+
+  /**
+   * Logic to extract the tenant ID from a raw Express request.
+   */
   resolveTenantId(request: Request): Promise<string | null>;
+
+  /**
+   * Verifies that a tenant ID corresponds to a valid, active tenant in the system.
+   */
   validateTenant(tenantId: string): Promise<boolean>;
+
+  /**
+   * Fetches the full metadata context for a tenant.
+   */
   getTenantContext(tenantId: string): Promise<TenantContext | null>;
 }
 
@@ -22,15 +51,31 @@ export class TenantManager {
   private static instance: TenantManager;
   private strategy: TenantStrategy | null = null;
   private config: MultitenancyConfig;
+  
+  /** 
+   * In-memory cache for tenant metadata contexts to avoid redundant DB lookups.
+   */
   private tenantCache: Map<string, TenantContext> = new Map();
+
+  /** 
+   * Cache for tenant-scoped Prisma clients to reuse connection pools efficiently.
+   */
   private prismaClientCache: Map<string, PrismaClient> = new Map();
 
+  /**
+   * Private constructor to enforce Singleton pattern.
+   * @param config - The framework's multitenancy configuration.
+   */
   private constructor(config: MultitenancyConfig) {
     this.config = config;
   }
 
   /**
-   * Get singleton instance
+   * Retrieves the singleton instance of the TenantManager.
+   * Must be provided with a configuration on the first call.
+   * 
+   * @param config - Configuration required for initialization.
+   * @throws Error if called without config before initialization.
    */
   public static getInstance(config?: MultitenancyConfig): TenantManager {
     if (!TenantManager.instance && config) {
@@ -43,32 +88,34 @@ export class TenantManager {
   }
 
   /**
-   * Set the tenant isolation strategy
+   * Injects the underlying isolation strategy (e.g., SharedSchemaStrategy).
+   * This must be set before the framework can resolve tenants.
    */
   public setStrategy(strategy: TenantStrategy): void {
     this.strategy = strategy;
   }
 
   /**
-   * Get the current tenant strategy
+   * Returns the currently active tenant strategy.
    */
   public getStrategy(): TenantStrategy | null {
     return this.strategy;
   }
 
   /**
-   * Resolve tenant ID from request
+   * Orchestrates the resolution of a tenant ID from an incoming request.
+   * It checks headers (standardized via config), subdomains, and falls back
+   * to the provided strategy or a default tenant.
+   * 
+   * @param request - The incoming Express request.
+   * @returns The resolved tenant ID string, or null if unresolvable.
    */
   public async resolveTenantId(request: Request): Promise<string | null> {
-    if (!this.config.enabled) {
-      return this.config.defaultTenant || null;
-    }
-
     if (!this.strategy) {
       throw new Error('Tenant strategy not set');
     }
 
-    // Try to get from custom header
+    // 1. Try to resolve via the configured custom header (defaults to X-Tenant-ID)
     const headerTenantId = request.headers[this.config.tenantHeader.toLowerCase()];
     if (headerTenantId && typeof headerTenantId === 'string') {
       const isValid = await this.strategy.validateTenant(headerTenantId);
@@ -77,7 +124,7 @@ export class TenantManager {
       }
     }
 
-    // Try to get from subdomain
+    // 2. Try to resolve via subdomain (e.g., tenant-a.myapp.com)
     const host = request.headers.host;
     if (host) {
       const subdomain = this.extractSubdomain(host);
@@ -89,15 +136,21 @@ export class TenantManager {
       }
     }
 
-    // Fall back to strategy's resolution
-    return await this.strategy.resolveTenantId(request);
+    // 3. Fallback to the strategy-specific resolution logic
+    const resolvedId = await this.strategy.resolveTenantId(request);
+    
+    // 4. Final fallback to the system default tenant if provided
+    return resolvedId || this.config.defaultTenant || null;
   }
 
   /**
-   * Get tenant context
+   * Retrieves the full context (metadata, config, name) for a specific tenant.
+   * Utilizes an internal cache to minimize database round-trips.
+   * 
+   * @param tenantId - The unique identifier of the tenant.
+   * @returns The TenantContext object, or null if the tenant is invalid/inactive.
    */
   public async getTenantContext(tenantId: string): Promise<TenantContext | null> {
-    // Check cache first
     if (this.tenantCache.has(tenantId)) {
       return this.tenantCache.get(tenantId)!;
     }
@@ -115,10 +168,13 @@ export class TenantManager {
   }
 
   /**
-   * Get Prisma client for specific tenant
+   * Provides a Prisma client instance scoped to the specified tenant.
+   * This is used by the Handler lifecycle to ensure data isolation.
+   * 
+   * @param tenantId - The unique identifier of the tenant.
+   * @returns A PrismaClient instance.
    */
   public async getPrismaClient(tenantId: string): Promise<PrismaClient> {
-    // Check cache first
     if (this.prismaClientCache.has(tenantId)) {
       return this.prismaClientCache.get(tenantId)!;
     }
@@ -134,7 +190,9 @@ export class TenantManager {
   }
 
   /**
-   * Validate if tenant exists and is active
+   * Validates whether a tenant exists and is in an 'Active' state.
+   * 
+   * @param tenantId - The unique identifier of the tenant to check.
    */
   public async validateTenant(tenantId: string): Promise<boolean> {
     if (!this.strategy) {
@@ -145,13 +203,16 @@ export class TenantManager {
   }
 
   /**
-   * Clear tenant cache
+   * Purges the internal metadata and client caches.
+   * If a tenantId is provided, only that tenant is cleared.
+   * Useful when tenant configurations are updated at runtime.
+   * 
+   * @param tenantId - Optional ID of a specific tenant to purge.
    */
   public clearCache(tenantId?: string): void {
     if (tenantId) {
       this.tenantCache.delete(tenantId);
       
-      // Disconnect and remove Prisma client
       const client = this.prismaClientCache.get(tenantId);
       if (client) {
         client.$disconnect().catch(console.error);
@@ -159,8 +220,6 @@ export class TenantManager {
       }
     } else {
       this.tenantCache.clear();
-      
-      // Disconnect all Prisma clients
       for (const client of this.prismaClientCache.values()) {
         client.$disconnect().catch(console.error);
       }
@@ -169,53 +228,43 @@ export class TenantManager {
   }
 
   /**
-   * Extract subdomain from host
+   * Utility to extract a subdomain from a Host header.
    */
   private extractSubdomain(host: string): string | null {
-    // Remove port if present
     const hostname = host.split(':')[0];
-    
-    // Split by dots
     const parts = hostname?.split('.') ?? [];
     
-    // If we have more than 2 parts (e.g., tenant.example.com), the first part is the subdomain
+    // Assumes format: subdomain.domain.tld
     if (parts.length > 2) {
       return parts[0] ?? null;
     }
-    
     return null;
   }
 
   /**
-   * Get multitenancy configuration
+   * Returns the current multitenancy configuration.
    */
   public getConfig(): MultitenancyConfig {
     return this.config;
   }
 
   /**
-   * Update multitenancy configuration
+   * Updates the multitenancy configuration at runtime.
    */
   public updateConfig(config: Partial<MultitenancyConfig>): void {
     this.config = { ...this.config, ...config };
   }
 
   /**
-   * Check if multitenancy is enabled
-   */
-  public isEnabled(): boolean {
-    return this.config.enabled;
-  }
-
-  /**
-   * Get all cached tenant IDs
+   * Returns an array of all currently cached tenant IDs.
    */
   public getCachedTenantIds(): string[] {
     return Array.from(this.tenantCache.keys());
   }
 
   /**
-   * Disconnect all tenant connections
+   * Gracefully disconnects all cached Prisma clients and clears the registry.
+   * Executed during application shutdown to prevent connection leaks.
    */
   public async disconnectAll(): Promise<void> {
     const disconnectPromises = Array.from(this.prismaClientCache.values()).map(

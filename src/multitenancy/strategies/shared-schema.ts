@@ -1,18 +1,15 @@
 /**
  * Shared Schema Tenant Strategy
  * 
- * All tenants share the same database schema with tenantId filtering.
- * This is the simplest and most cost-effective approach but provides the least isolation.
+ * The SharedSchemaStrategy implements the most common isolation pattern where all tenants 
+ * share a single database and the same database schema. Data isolation is achieved 
+ * logically rather than physically, using a discriminator column (tenantId) on every table.
  * 
- * Pros:
- * - Simple to implement and maintain
- * - Cost-effective (single database)
- * - Easy schema updates
- * 
- * Cons:
- * - Shared infrastructure requires careful resource management
- * - Potential for data leakage if auto-scoping is bypassed
- * - All tenants affected by shared database maintenance
+ * In this strategy:
+ * 1. All tenants use the same underlying Prisma client connection pool.
+ * 2. Tenet automatically scopes queries using Prisma Client Extensions (RLS concept).
+ * 3. It is highly optimized for serverless and cloud-native environments due to 
+ *    low connection overhead.
  */
 
 import { Request } from 'express';
@@ -20,9 +17,23 @@ import { PrismaClient } from '@prisma/client';
 import { TenantContext } from '../../core/types';
 import { TenantStrategy } from '../manager';
 
+/**
+ * Configuration options for the SharedSchemaStrategy.
+ */
 export interface SharedSchemaConfig {
+  /** The global PrismaClient instance that all tenants will share. */
   prismaClient: PrismaClient;
+
+  /** 
+   * Optional: Overrides the field name used for tenant filtering.
+   * @default 'tenantId'
+   */
   tenantIdField?: string;
+
+  /** 
+   * Time-to-Live for the internal tenant context cache (milliseconds).
+   * @default 300000 (5 minutes)
+   */
   cacheTtl?: number;
 }
 
@@ -30,43 +41,53 @@ export class SharedSchemaStrategy implements TenantStrategy {
   public readonly name = 'shared_schema';
   private prismaClient: PrismaClient;
   private tenantIdField: string;
+
+  /** 
+   * Local context cache to avoid redundant metadata queries within the strategy.
+   * Note: This is separate from the TenantManager's high-level cache.
+   */
   private tenantCache: Map<string, TenantContext> = new Map();
   private cacheTtl: number;
 
   constructor(config: SharedSchemaConfig) {
     this.prismaClient = config.prismaClient;
     this.tenantIdField = config.tenantIdField || 'tenantId';
-    this.cacheTtl = config.cacheTtl || 5 * 60 * 1000; // 5 minutes default
+    this.cacheTtl = config.cacheTtl || 5 * 60 * 1000;
   }
 
   /**
-   * Get Prisma client for tenant
-   * In shared schema, all tenants use the same Prisma client
+   * Retrieves the shared Prisma client.
+   * In a shared schema environment, we return the singleton client instance.
+   * Data isolation is then applied at the Handler level via Client Extensions.
+   * 
+   * @param tenantId - The identifier of the tenant.
+   * @returns The shared PrismaClient instance.
    */
   public async getPrismaClient(tenantId: string): Promise<PrismaClient> {
-    // Validate tenant exists
+    // We validate that the tenant is active before returning the client
     await this.validateTenant(tenantId);
-    
-    // Return the shared Prisma client
-    // Note: Automatic tenant filtering is applied via the TenantManager/Handler lifecycle using Prisma Client Extensions.
     return this.prismaClient;
   }
 
   /**
-   * Resolve tenant ID from request
+   * Resolves the tenant ID from common URL patterns or the request state.
+   * This is used as a fallback if headers or subdomains aren't present.
+   * 
+   * @param request - Incoming Express request.
+   * @returns Character ID of the tenant or null.
    */
   public async resolveTenantId(request: Request): Promise<string | null> {
-    // Try to get from URL params (e.g., /api/tenants/:tenantId/...)
+    // 1. Check URL parameters (e.g., /:tenantId/projects)
     if (request.params.tenantId) {
       return request.params.tenantId;
     }
 
-    // Try to get from query params
+    // 2. Check query string (e.g., ?tenantId=acme)
     if (request.query.tenantId && typeof request.query.tenantId === 'string') {
       return request.query.tenantId;
     }
 
-    // Try to get from user context (if authenticated)
+    // 3. Extract from an already authenticated user context
     const user = (request as any).user;
     if (user && user.tenantId) {
       return user.tenantId;
@@ -76,11 +97,13 @@ export class SharedSchemaStrategy implements TenantStrategy {
   }
 
   /**
-   * Validate if tenant exists and is active
+   * Performs a database check to verify if a tenant ID is valid and active.
+   * 
+   * @param tenantId - Character ID of the tenant to validate.
    */
   public async validateTenant(tenantId: string): Promise<boolean> {
     try {
-      // Check if tenant exists in the database
+      // Direct query against the global client to verify existence
       const tenant = await (this.prismaClient as any).tenant.findUnique({
         where: { id: tenantId },
         select: { id: true, isActive: true },
@@ -88,23 +111,22 @@ export class SharedSchemaStrategy implements TenantStrategy {
 
       return tenant && tenant.isActive;
     } catch (error) {
-      console.error(`Error validating tenant ${tenantId}:`, error);
+      console.error(`[SharedSchemaStrategy] Validation Error for ${tenantId}:`, error);
       return false;
     }
   }
 
   /**
-   * Get tenant context
+   * Fetches the detailed metadata context for a tenant.
+   * This context is used to populate the HandlerContext during request execution.
    */
   public async getTenantContext(tenantId: string): Promise<TenantContext | null> {
-    // Check cache first
     const cached = this.tenantCache.get(tenantId);
     if (cached) {
       return cached;
     }
 
     try {
-      // Fetch tenant from database
       const tenant = await (this.prismaClient as any).tenant.findUnique({
         where: { id: tenantId },
         select: {
@@ -125,24 +147,22 @@ export class SharedSchemaStrategy implements TenantStrategy {
         config: tenant.config || {},
       };
 
-      // Cache the context
       this.tenantCache.set(tenantId, context);
 
-      // Set up cache expiry
+      // Auto-purge the local strategy cache based on TTL
       setTimeout(() => {
         this.tenantCache.delete(tenantId);
       }, this.cacheTtl);
 
       return context;
     } catch (error) {
-      console.error(`Error fetching tenant context for ${tenantId}:`, error);
+      console.error(`[SharedSchemaStrategy] Context Fetch Error for ${tenantId}:`, error);
       return null;
     }
   }
 
-
   /**
-   * Clear tenant cache
+   * Clears the internal strategy cache.
    */
   public clearCache(tenantId?: string): void {
     if (tenantId) {
@@ -153,7 +173,7 @@ export class SharedSchemaStrategy implements TenantStrategy {
   }
 
   /**
-   * Get tenant ID field name
+   * Utility to retrieve the field name used for tenant isolation.
    */
   public getTenantIdField(): string {
     return this.tenantIdField;
