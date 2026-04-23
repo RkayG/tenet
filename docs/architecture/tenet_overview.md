@@ -25,7 +25,7 @@ The framework assumes a hostile environment and applies defensive measures by de
 ## 🏗️ Technical Implementation
 
 ### The Multi-Tenant Isolation Model
-Tenet implements multi-tenancy at the **Application Layer** using Prisma Client Extensions. By wrapping the database client, Tenet intercepts all outgoing queries and injects tenant-specific `WHERE` clauses (e.g., `WHERE tenant_id = '...'`). This approach provides robust data isolation and prevents cross-tenant data leaks without the overhead of maintaining separate database instances for every tenant. For a deeper dive into available strategies, see the **[Multi-Tenancy Guide](multi-tenancy.md)**.
+Tenet implements multi-tenancy at the **Application Layer** using Prisma Client Extensions. By wrapping the database client, Tenet intercepts all outgoing queries and injects tenant-specific `WHERE` clauses (e.g., `WHERE tenantId = '...'`). This approach provides robust data isolation and prevents cross-tenant data leaks without the overhead of maintaining separate database instances or complex schema migrations for every tenant. For a deeper dive into the isolation model, see the **[Multi-Tenancy Guide](multi-tenancy.md)**.
 
 ### Enterprise-Grade Auditing
 Observability is integrated directly into the request lifecycle. The framework generates two types of high-fidelity logs:
@@ -70,7 +70,7 @@ graph TD
 Tenet is designed to be cloud-native and horizontally scalable:
 - **Application**: Pure Node.js (v18+) with Express.
 - **Statelessness**: All session and rate-limit data is stored in **Redis**, allowing multiple framework instances to share a global security state.
-- **Data Persistence**: Officially supports **PostgreSQL** and **MySQL** via Prisma, leveraging modern RDBMS features for efficient tenant isolation.
+- **Data Persistence**: Officially supports **PostgreSQL** (preferred) and **MySQL** via Prisma, leveraging modern RDBMS features for efficient tenant isolation.
 
 ---
 

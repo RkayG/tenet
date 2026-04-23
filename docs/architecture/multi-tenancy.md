@@ -8,7 +8,7 @@ The framework determines the current tenant context for every request strategy:
 
 1.  **Header**: `X-Tenant-ID` (Most common for APIs)
 2.  **Subdomain**: `marketing.app.com` -> tenant `marketing`
-3.  **Token Claim**: `tenant_id` inside JWT
+3.  **Token Claim**: `tenantId` inside JWT
 
 Once resolved, the `tenant` object is available in the handler context:
 
@@ -27,9 +27,9 @@ We use **Prisma Client Extensions** to enforce logical separation of data within
 When `autoTenantScope: true` (default in `tenant` preset), the framework:
 
 1.  Intercepts the `prisma` client instance.
-2.  Should the model have a `tenant_id` field?
-3.  **YES**: Automatically appends `WHERE tenant_id = ?` to every query (find, update, delete).
-4.  **YES**: Automatically injects `data: { tenant_id: ? }` on create.
+2.  Checks for a `tenantId` field in the model.
+3.  **YES**: Automatically appends `WHERE tenantId = ?` to every query (find, update, delete).
+4.  **YES**: Automatically injects `data: { tenantId: ? }` on create.
 
 ### Example
 
@@ -38,7 +38,7 @@ When `autoTenantScope: true` (default in `tenant` preset), the framework:
 await prisma.project.findMany();
 
 // Framework executes:
-SELECT * FROM "Project" WHERE "tenant_id" = 'current-tenant-id';
+SELECT * FROM "Project" WHERE "tenantId" = 'current-tenant-id';
 ```
 
 ## Tenant Authorization
@@ -49,10 +49,10 @@ Beyond just knowing the tenant, we verify the **User's Membership**.
 - The `tenant` preset automatically checks the `TenantMember` table.
 - You can enforce roles: `allowedRoles: ['ADMIN']` ensures the user is a Tenant Admin.
 
-## Database Strategies supported
+## Database Isolation Model
 
-1.  **Shared Database (Schema-based)**: (Default) All tenants in one DB, separated by `tenant_id` column.
-2.  **Separate Schemas**: Postgres schemas (`tenant_a`, `tenant_b`).
-3.  **Separate Databases**: Physically distinct DBs (Enterprise tier).
+Tenet exclusively utilize the **Shared Database (Shared Schema)** strategy.
 
-*Currently, the framework is optimized for Strategy 1 (Shared Database).*
+1.  **Shared Database (Shared Schema)**: All tenants reside within a single database, with data isolation enforced at the application level via `tenantId` columns.
+
+This approach was chosen to maximize compatibility with modern serverless and containerized environments where connection pooling and schema management complexity should be minimized. Isolation is guaranteed by Tenet's automatic Prisma Client Extensions.

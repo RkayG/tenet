@@ -1,10 +1,9 @@
 /**
  * Tenant Manager
  * 
- * Manages multi-tenancy support with different isolation strategies:
- * - Shared Schema: All tenants share the same database schema with tenant_id filtering
- * - Separate Schema: Each tenant has its own schema within the same database
- * - Separate Database: Each tenant has its own dedicated database
+ * Manages multi-tenancy support using the Shared Schema isolation strategy.
+ * All tenants share the same database schema with automatic tenantId filtering
+ * applied via Prisma Client Extensions.
  */
 
 import { Request } from 'express';
