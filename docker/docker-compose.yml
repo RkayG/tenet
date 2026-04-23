@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Tenet API Framework
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://tenant_admin:tenant_pass@postgres:5432/tenet_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=change-me-in-production-very-important-secret
+      - ENCRYPTION_KEY=32-character-secret-key-for-aes
+      - TENANT_HEADER=X-Tenant-ID
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=tenant_admin
+      - POSTGRES_PASSWORD=tenant_pass
+      - POSTGRES_DB=tenet_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenant_admin -d tenet_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Caching and Rate Limiting
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

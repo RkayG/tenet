@@ -52,6 +52,19 @@ pnpm link --global @tenet/api
 
 ---
 
+## 🐋 Quick Start with Docker
+
+The fastest way to experience Tenet is using Docker Compose, which spins up the API, a PostgreSQL database, and a Redis instance automatically.
+
+```bash
+# Start the full stack
+docker-compose -f docker/docker-compose.yml up -d
+```
+
+The API will be available at `http://localhost:3000`.
+
+---
+
 ## 🚀 One-Minute Intro
 
 Here is how you define a secure, multi-tenant endpoint in Tenet. Notice the lack of manual validation or security middleware.

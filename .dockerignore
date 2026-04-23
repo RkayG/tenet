@@ -1,0 +1,17 @@
+node_modules
+pnpm-lock.yaml
+dist
+docs
+tests
+coverage
+*.md
+.git
+.gitignore
+.github
+.env
+.eslint*
+.sonarlint.json
+tsconfig.json
+jest.config.js
+Dockerfile
+docker-compose.yml
