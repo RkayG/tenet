@@ -37,8 +37,6 @@ export type {
 
 // Authentication
 export { JWTStrategy } from './auth/strategies/jwt';
-export { APIKeyStrategy } from './auth/strategies/api-key';
-export { OAuthStrategy } from './auth/strategies/oauth';
 export { AuthManager } from './auth/manager';
 
 // Security

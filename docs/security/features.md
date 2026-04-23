@@ -6,9 +6,7 @@ Tenet is engineered with a **Defense-in-Depth** strategy. This document details 
 
 ## 1. Authentication Engine
 Tenet supports a multi-strategy authentication manager. It processes credentials based on a priority queue, supporting:
-- **JWT (Stateless)**: Cryptographically signed tokens for web and mobile clients.
-- **Persistent API Keys**: Secure, hashed keys for server-to-server communication.
-- **Extension Hooks**: Pluggable strategies for OAuth2 and OpenID Connect.
+- **JWT (json-web-token)**: Cryptographically signed tokens for web and mobile clients (Standard).
 
 ## 2. Input Integrity & Sanitization
 Before data reaches the validation layer, it passes through a sanitization engine:
