@@ -179,7 +179,7 @@ function generateCacheKey(
   path: string,
   input: any,
   userId?: string,
-  tenantId?: string
+  tenant_id?: string
 ): string {
   // Hash the input to prevent cache key length issues and improve security
   const inputHash = crypto
@@ -191,7 +191,7 @@ function generateCacheKey(
   const parts = [
     'cache',
     path,
-    tenantId || 'global',
+    tenant_id || 'global',
     userId || 'anon',
     inputHash,
   ];
@@ -265,12 +265,12 @@ function initializeEncryptionService(): EncryptionService {
  * Get or create tenant-aware Prisma client with proper connection management
  */
 async function getPrismaClient(
-  tenantId: string | undefined,
+  tenant_id: string | undefined,
   tenantManager: any,
   globalPrisma: PrismaClient
 ): Promise<PrismaClient> {
-  if (tenantId) {
-    return await tenantManager.getPrismaClient(tenantId);
+  if (tenant_id) {
+    return await tenantManager.getPrismaClient(tenant_id);
   }
 
   if (!globalPrisma) {
@@ -407,9 +407,9 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
       // ============================================
 
       if (tenantManager.isEnabled()) {
-        const tenantId = await tenantManager.resolveTenantId(req);
-        if (tenantId) {
-          tenant = await tenantManager.getTenantContext(tenantId) || undefined;
+        const tenant_id = await tenantManager.resolveTenantId(req);
+        if (tenant_id) {
+          tenant = await tenantManager.getTenantContext(tenant_id) || undefined;
         }
 
         // Only fail if tenant is required
@@ -696,7 +696,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           const tenantMembership = await prisma.tenantMember.findFirst({
             where: {
               userId: user!.id,
-              tenantId: tenant!.id,
+              tenant_id: tenant!.id,
               role: { in: effectiveConfig.allowedRoles as any[] },
               isActive: true,
             },
@@ -762,7 +762,7 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
       let resource: any = undefined;
 
       if (effectiveConfig.requireOwnership && user) {
-        const { model, resourceIdParam, resourceIdField, ownerIdField, tenantIdField, selectFields } = effectiveConfig.requireOwnership;
+        const { model, resourceIdParam, resourceIdField, ownerIdField, tenant_idField, selectFields } = effectiveConfig.requireOwnership;
         const resourceId = params[resourceIdParam];
 
         if (!resourceId) {
@@ -787,8 +787,8 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           }
 
           // Add tenant filter
-          if (tenantIdField && tenant?.id) {
-            where[tenantIdField] = tenant.id;
+          if (tenant_idField && tenant?.id) {
+            where[tenant_idField] = tenant.id;
           }
 
           // Query using validated model name
@@ -1081,20 +1081,6 @@ function _createHandler<TInput = unknown, TOutput = unknown>(
           monitoring.endSpan(span);
         } catch (error: any) {
           console.error('Failed to end monitoring span:', error.message);
-        }
-      }
-
-      // Cleanup: Disconnect Prisma if needed
-      // Note: In production, use connection pooling and don't disconnect on every request
-      // Only disconnect tenant-specific clients that were created for this request
-      if (prisma && tenant) {
-        try {
-          // Don't await - let it disconnect in background
-          prisma.$disconnect().catch((error: any) => {
-            console.error('Prisma disconnect error:', error.message);
-          });
-        } catch (error) {
-          // Ignore disconnect errors in finally block
         }
       }
     }
