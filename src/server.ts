@@ -18,7 +18,6 @@ import { HealthChecker } from './monitoring/health';
 import { healthCheckResponse } from './core/response';
 import { TenantManager } from './multitenancy/manager';
 import { SharedSchemaStrategy } from './multitenancy/strategies/shared-schema';
-import testRoutes from './test-routes';
 
 const app: Express = express();
 const prisma = new PrismaClient();
@@ -37,20 +36,16 @@ const monitoring = MonitoringService.getInstance();
 // Initialize health checker
 const healthChecker = HealthChecker.getInstance();
 
-// Initialize multitenancy (optional - can be disabled)
+// Initialize multitenancy
 const tenantManager = TenantManager.getInstance({
-  enabled: false, // Set to true to enable multitenancy
-  strategy: 'shared_schema',
   tenantHeader: 'x-tenant-id',
   defaultTenant: 'default',
 });
 
-// Set tenant strategy if enabled
-if (tenantManager.isEnabled()) {
-  tenantManager.setStrategy(new SharedSchemaStrategy({
-    prismaClient: prisma,
-  }));
-}
+// Set tenant strategy (Shared Schema)
+tenantManager.setStrategy(new SharedSchemaStrategy({
+  prismaClient: prisma,
+}));
 
 // Middleware setup
 app.use(helmet({
@@ -90,6 +85,7 @@ app.use((req, res, next) => {
       path: req.path,
       status: res.statusCode.toString(),
       duration: duration.toString(),
+      durationMs: duration,
     });
   });
 
@@ -117,9 +113,6 @@ app.get('/health', async (_req: Request, res: Response) => {
 // Example:
 // import userRoutes from './routes/users';
 // app.use('/api/users', userRoutes);
-
-// Test routes
-app.use(testRoutes);
 
 // Example route
 app.get('/api/test', (_req: Request, res: Response) => {
