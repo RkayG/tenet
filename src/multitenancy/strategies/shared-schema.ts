@@ -1,7 +1,7 @@
 /**
  * Shared Schema Tenant Strategy
  * 
- * All tenants share the same database schema with tenant_id filtering.
+ * All tenants share the same database schema with tenantId filtering.
  * This is the simplest and most cost-effective approach but provides the least isolation.
  * 
  * Pros:
@@ -10,9 +10,9 @@
  * - Easy schema updates
  * 
  * Cons:
- * - Least data isolation
- * - Risk of data leakage if queries aren't properly filtered
- * - All tenants affected by database issues
+ * - Shared infrastructure requires careful resource management
+ * - Potential for data leakage if auto-scoping is bypassed
+ * - All tenants affected by shared database maintenance
  */
 
 import { Request } from 'express';
@@ -48,7 +48,7 @@ export class SharedSchemaStrategy implements TenantStrategy {
     await this.validateTenant(tenantId);
     
     // Return the shared Prisma client
-    // Note: Queries must be manually filtered by tenant_id
+    // Note: Automatic tenant filtering is applied via the TenantManager/Handler lifecycle using Prisma Client Extensions.
     return this.prismaClient;
   }
 
@@ -68,8 +68,8 @@ export class SharedSchemaStrategy implements TenantStrategy {
 
     // Try to get from user context (if authenticated)
     const user = (request as any).user;
-    if (user && user.tenant_id) {
-      return user.tenant_id;
+    if (user && user.tenantId) {
+      return user.tenantId;
     }
 
     return null;
@@ -140,62 +140,6 @@ export class SharedSchemaStrategy implements TenantStrategy {
     }
   }
 
-  /**
-   * Create Prisma middleware for automatic tenant filtering
-   * This ensures all queries are automatically filtered by tenant_id
-   */
-  public createTenantMiddleware(tenantId: string) {
-    return async (params: any, next: any) => {
-      // Skip for tenant-related queries to avoid infinite loops
-      if (params.model === 'Tenant') {
-        return next(params);
-      }
-
-      // Add tenant_id filter to all queries
-      if (params.action === 'findUnique' || params.action === 'findFirst') {
-        params.args.where = params.args.where || {};
-        params.args.where[this.tenantIdField] = tenantId;
-      }
-
-      if (params.action === 'findMany') {
-        params.args.where = params.args.where || {};
-        params.args.where[this.tenantIdField] = tenantId;
-      }
-
-      if (params.action === 'create') {
-        params.args.data = params.args.data || {};
-        params.args.data[this.tenantIdField] = tenantId;
-      }
-
-      if (params.action === 'createMany') {
-        if (Array.isArray(params.args.data)) {
-          params.args.data = params.args.data.map((item: any) => ({
-            ...item,
-            [this.tenantIdField]: tenantId,
-          }));
-        }
-      }
-
-      if (params.action === 'update' || params.action === 'updateMany') {
-        params.args.where = params.args.where || {};
-        params.args.where[this.tenantIdField] = tenantId;
-      }
-
-      if (params.action === 'delete' || params.action === 'deleteMany') {
-        params.args.where = params.args.where || {};
-        params.args.where[this.tenantIdField] = tenantId;
-      }
-
-      if (params.action === 'upsert') {
-        params.args.where = params.args.where || {};
-        params.args.where[this.tenantIdField] = tenantId;
-        params.args.create = params.args.create || {};
-        params.args.create[this.tenantIdField] = tenantId;
-      }
-
-      return next(params);
-    };
-  }
 
   /**
    * Clear tenant cache
