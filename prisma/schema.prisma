@@ -1,4 +1,4 @@
-// Prisma schema for Secure API Handler Framework
+// Prisma schema for Tenet
 // This is a sample schema - customize it for your application
 
 generator client {

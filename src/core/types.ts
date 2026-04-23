@@ -1,5 +1,5 @@
 /**
- * Comprehensive TypeScript types and interfaces for the Secure API Handler Framework
+ * Comprehensive TypeScript types and interfaces for the Tenet Framework
  */
 
 import { Request, Response } from 'express';

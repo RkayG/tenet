@@ -1,7 +1,7 @@
 /**
- * Express Server Setup for Secure API Handler Framework
+ * Express Server Setup for the Tenet Framework
  *
- * This file demonstrates how to set up an Express server with the secure API handler framework.
+ * This file demonstrates how to set up an Express server with the Tenet framework.
  */
 
 import express, { Express, NextFunction, Request, Response } from 'express';
@@ -124,7 +124,7 @@ app.use(testRoutes);
 // Example route
 app.get('/api/test', (_req: Request, res: Response) => {
   res.json({
-    message: 'Secure API Handler Framework is running!',
+    message: 'Tenet Framework is running!',
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0',
   });
@@ -182,7 +182,7 @@ const port = configManager.getConfig().port;
 const host = configManager.getConfig().host;
 
 app.listen(port, host, () => {
-  console.log(`🚀 Secure API Handler Framework running on http://${host}:${port}`);
+  console.log(`🚀 Tenet Framework running on http://${host}:${port}`);
   console.log(`📊 Health check available at http://${host}:${port}/health`);
   console.log(`🔒 Environment: ${process.env.NODE_ENV || 'development'}`);
 });

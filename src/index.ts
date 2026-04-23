@@ -1,9 +1,8 @@
 /**
- * Secure API Handler Framework for Node.js + Express + Prisma
+ * Tenet Framework for Node.js + Express + Prisma
  *
- * A comprehensive framework for building secure, multi-tenant API handlers
- * with authentication, sanitization, encryption, rate limiting, caching,
- * and observability features.
+ * A comprehensive framework for building secure, multi-tenant B2B SaaS APIs
+ * with automated data isolation, audit trails, and security by default.
  *
  * @packageDocumentation
  */

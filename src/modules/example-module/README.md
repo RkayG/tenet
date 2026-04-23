@@ -1,6 +1,6 @@
 # Example Module - Task Management
 
-This module serves as a reference implementation for building features within the Secure API Request Handler framework. It demonstrates how to implement a complete vertical slice of functionality (Tasks) while following the framework's security, multi-tenancy, and architectural patterns.
+This module serves as a reference implementation for building features within the Tenet framework. It demonstrates how to implement a complete vertical slice of functionality (Tasks) while following the framework's security, multi-tenancy, and architectural patterns.
 
 ## Directory Structure
 
