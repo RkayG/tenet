@@ -8,10 +8,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
-  createHandler,
+  createPublicHandler,
   createAuthenticatedHandler,
-  createAdminHandler
+  createSuperAdminHandler
 } from '../../../../../src/core/handler';
+import { CryptoUtils } from '../../../../../src/utils/crypto';
 
 const router: Router = Router();
 
@@ -35,7 +36,7 @@ const UpdateUserSchema = z.object({
 /**
  * GET /api/users - List users (public, but filtered)
  */
-router.get('/', createHandler({
+router.get('/', createPublicHandler({
   schema: z.object({
     limit: z.number().min(1).max(100).default(10),
     offset: z.number().min(0).default(0),
@@ -115,8 +116,7 @@ router.post('/', createAuthenticatedHandler({
     const newUser = await prisma.user.create({
       data: {
         ...input,
-        // Note: In real app, hash the password
-        password: 'hashed-password-placeholder',
+        password: await CryptoUtils.hashPassword(input.email), // Initial password is email for demo
       },
       select: {
         id: true,
@@ -190,7 +190,7 @@ router.put('/:id', createAuthenticatedHandler({
 /**
  * DELETE /api/users/:id - Delete user (admin only)
  */
-router.delete('/:id', createAdminHandler({
+router.delete('/:id', createSuperAdminHandler({
   requireOwnership: {
     model: 'User',
     resourceIdParam: 'id',
@@ -214,7 +214,7 @@ router.delete('/:id', createAdminHandler({
 /**
  * POST /api/users/bulk - Bulk operations (admin only)
  */
-router.post('/bulk', createAdminHandler({
+router.post('/bulk', createSuperAdminHandler({
   schema: z.object({
     users: z.array(CreateUserSchema).min(1).max(100),
   }),
@@ -223,11 +223,10 @@ router.post('/bulk', createAdminHandler({
     maxRequests: 5, // 5 bulk operations per 5 minutes
   },
   handler: async ({ input, user, prisma }) => {
-    const usersToCreate = input.users.map(userData => ({
+    const usersToCreate = await Promise.all(input.users.map(async (userData) => ({
       ...userData,
-      // Note: In real app, hash the password
-      password: 'hashed-password-placeholder',
-    }));
+      password: await CryptoUtils.hashPassword(userData.email),
+    })));
 
     const createdUsers = await prisma.user.createMany({
       data: usersToCreate,

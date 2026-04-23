@@ -21,7 +21,7 @@ router.get('/test/hello', createPublicHandler({
     return {
       message: `Hello, ${input.name}!`,
       timestamp: new Date().toISOString(),
-      framework: 'Secure API Handler',
+      framework: 'Tenet',
     };
   },
 }));
@@ -95,7 +95,7 @@ router.post('/test/generate-token', createPublicHandler({
     const user: User = {
       id: input.userId,
       email: input.email,
-      tenant_id: input.userId,
+      tenantId: input.userId,
       role: input.role,
     };
 
@@ -126,7 +126,7 @@ router.get('/test/protected', createHandler({
         id: user?.id,
         email: user?.email,
         role: user?.role,
-        tenant_id: user?.tenant_id,
+        tenantId: user?.tenantId,
       },
       timestamp: new Date().toISOString(),
     };
@@ -137,7 +137,7 @@ router.get('/test/protected', createHandler({
 router.get('/test/features', createPublicHandler({
   handler: async () => {
     return {
-      framework: 'Secure API Handler Template',
+      framework: 'Tenet',
       version: '1.0.0',
       features: {
         authentication: {

@@ -87,13 +87,13 @@ app.post('/api/admin/audit/cleanup', async (req, res) => {
 // Example 4: Multi-Tenant Audit Isolation
 // ============================================
 
-app.get('/api/tenant/:tenantId/audit-logs', async (req, res) => {
-    const { tenantId } = req.params;
+app.get('/api/tenant/:tenant_id/audit-logs', async (req, res) => {
+    const { tenant_id } = req.params;
     const { startDate, endDate } = req.query;
 
     const result = await auditService.queryLogs(
         {
-            tenantId,
+            tenant_id,
             startDate: startDate ? new Date(startDate as string) : undefined,
             endDate: endDate ? new Date(endDate as string) : undefined,
         },
@@ -119,7 +119,7 @@ app.get('/api/admin/compliance-report', async (req, res) => {
     const report = await reporter.generateComplianceReport(
         startDate,
         new Date(),
-        req.query.tenantId as string | undefined
+        req.query.tenant_id as string | undefined
     );
 
     res.json(report);
