@@ -5,27 +5,25 @@
 [![Prisma](https://img.shields.io/badge/Prisma-5.6-green.svg)](https://prisma.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Secure, Enterprise-Grade API Framework for Node.js**
+**Multi-tenanat API Framework for Node.js**
 
-Tenet is a high-level framework built on top of Express and Prisma, designed to automate the repetitive security and compliance aspects of modern API development. It enforces a "Security by Default" philosophy, allowing developers to focus entirely on business logic while the framework handles the heavy lifting of multi-tenancy, auditing, and threat mitigation.
-
----
-
-## 🎨 Philosophy: Security by Default
-
-Tenet was built to eliminate "middleware fatigue." Instead of manually configuring security layers for every route, you define your requirements declaratively.
-
-- **🛡️ Shielded Endpoints**: Every handler automatically receives CSRF protection, IP/User rate-limiting, and XSS/SQLi sanitization.
-- **🏗️ Structured Business Logic**: No more hunting through parameters. Handlers receive a pre-validated, typed context including the user, tenant, and a scoped database client.
-- **📜 Compliance native**: Enterprise-grade audit trails are generated as a side-effect of execution, tracking changes and access for SOC2/GDPR compliance.
+Tenet is a high-level framework built on top of Express and Prisma, designed to automate the repetitive security and compliance aspects of API developmemnt in multi-tenant systems, particularly when using the shared-schema isolation strategy. 
 
 ---
 
-## ⚡ Getting Started
+## Philosophy: Security by Default
+
+Tenet was built to remove layers of guards in API routes and centralise them in single handler. This makes routes much shorter, cleaner and focused.
+
+- ** Shielded Endpoints**: Every handler automatically receives CSRF protection, IP/User rate-limiting, and XSS/SQLi sanitization.
+- ** Structured Business Logic**: No more hunting through parameters. Handlers receive a pre-validated, typed context including the user, tenant, and a scoped database client.
+- ** Compliance native**: Enterprise-grade audit trails are generated as a side-effect of execution, tracking changes and access for SOC2/GDPR compliance.
+
+---
+
+## Getting Started
 
 ### 1. Installation
-
-Since Tenet is currently in active development and not yet on the public NPM registry, it should be integrated via cloning or linking.
 
 ```bash
 # Clone and setup
@@ -39,20 +37,7 @@ cp .env.example .env
 pnpm db:generate
 ```
 
-### 2. Integration (Local usage)
-
-To use Tenet in your project, link it globally:
-```bash
-# In the tenet directory
-pnpm link --global
-
-# In your project directory
-pnpm link --global @tenet/api
-```
-
----
-
-## 🐋 Quick Start with Docker
+## Quick Start with Docker
 
 The fastest way to experience Tenet is using Docker Compose, which spins up the API, a PostgreSQL database, and a Redis instance automatically.
 
@@ -65,7 +50,7 @@ The API will be available at `http://localhost:3000`.
 
 ---
 
-## 🚀 One-Minute Intro
+## One-Minute Intro
 
 Here is how you define a secure, multi-tenant endpoint in Tenet. Notice the lack of manual validation or security middleware.
 
@@ -90,9 +75,9 @@ export const listProjects = createTenantHandler({
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-Explore our detailed documentation for architecture deep-dives and full API references:
+Check detailed documentation for architecture deep-dives and full API references:
 
 - **[API Reference](docs/API.md)** – Core exports, factories, and utility types.
 - **[Handler Guide](docs/api/handlers.md)** – Deep dive into `createPublicHandler`, `createAuthenticatedHandler`, etc.
@@ -101,7 +86,7 @@ Explore our detailed documentation for architecture deep-dives and full API refe
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 graph TD
@@ -115,7 +100,7 @@ graph TD
     H --> I["Audit Tracking (Complete)"]
 ```
 
-## 🚀 Examples
+## Examples
 
 The repository includes a suite of examples demonstrating enterprise patterns:
 - **`pnpm dev:basic-api`**: Full User Management CRUD with auth and audit.
@@ -123,12 +108,11 @@ The repository includes a suite of examples demonstrating enterprise patterns:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for our development workflow.
-
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md).
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
